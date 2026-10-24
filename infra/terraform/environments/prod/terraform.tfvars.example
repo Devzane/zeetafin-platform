@@ -1,0 +1,19 @@
+# Copy this file to terraform.tfvars and fill in the values marked with [FILL IN].
+# terraform.tfvars is gitignored — never commit it.
+
+aws_region   = "us-east-1"
+aws_profile  = "phase1"
+project_name = "phase1"
+environment  = "dev"
+
+vpc_cidr           = "10.0.0.0/16"
+public_subnet_cidr = "10.0.1.0/24"
+availability_zone  = "us-east-1a"
+
+instance_type = "t3.micro"
+
+# [FILL IN] Run `curl -s ifconfig.me` and append /32
+my_ip = "YOUR_PUBLIC_IP/32"
+
+# [FILL IN] Absolute or tilde path to your SSH public key
+ssh_public_key_path = "~/.ssh/phase1-key.pub"
