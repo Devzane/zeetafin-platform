@@ -1,0 +1,42 @@
+name: "CI - Backend (NestJS)"
+
+on:
+  pull_request:
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/ci-backend.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/ci-backend.yml"
+
+jobs:
+  validate-backend:
+    name: "Lint, Typecheck & Test"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Set up Node.js 20"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: "apps/backend/package-lock.json"
+
+      - name: "Install Dependencies"
+        working-directory: "apps/backend"
+        run: npm ci
+
+      - name: "TypeScript Build & Compile Check"
+        working-directory: "apps/backend"
+        run: npm run build
+
+      - name: "Verify Multi-Stage Dockerfile Build"
+        working-directory: "apps/backend"
+        run: |
+          docker build -t zeetafin-backend:test .
