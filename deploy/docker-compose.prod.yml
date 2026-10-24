@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: zeetafin-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zeetafin_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-zeetafin}
+    ports:
+      - "5432:5432"
+    volumes:
+      - zeetafin_prod_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-zeetafin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - zeetafin-prod-net
+
+  backend:
+    image: ${ECR_REGISTRY}/zeetafin-backend:${IMAGE_TAG:-latest}
+    container_name: zeetafin-backend-prod
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-zeetafin_secret}
+      DB_NAME: ${POSTGRES_DB:-zeetafin}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_zeetafin_devops_assignment_2026}
+      NODE_ENV: production
+      DB_SYNC: "true"
+      DB_LOGGING: "false"
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/api/docs || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - zeetafin-prod-net
+
+  frontend:
+    image: ${ECR_REGISTRY}/zeetafin-frontend:${IMAGE_TAG:-latest}
+    container_name: zeetafin-frontend-prod
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - zeetafin-prod-net
+
+volumes:
+  zeetafin_prod_pgdata:
+    name: zeetafin_prod_pgdata
+    driver: local
+
+networks:
+  zeetafin-prod-net:
+    name: zeetafin-prod-net
+    driver: bridge
