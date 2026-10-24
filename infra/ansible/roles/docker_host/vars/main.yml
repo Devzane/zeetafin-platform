@@ -1,0 +1,16 @@
+---
+# Variables for docker_host role
+docker_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+docker_ce_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+docker_users:
+  - ubuntu
