@@ -1,0 +1,125 @@
+# ==============================================================================
+# Universal Enterprise .gitignore — ZeetaFin Cloud Platform
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (CRITICAL SECURITY BOUNDARY)
+# ------------------------------------------------------------------------------
+*.env
+*.env.*
+!.env.example
+!.env.local.example
+!.env.test.example
+*.pem
+*.key
+*.cert
+*.crt
+id_rsa
+id_rsa.pub
+*.id_rsa
+known_hosts
+
+# ------------------------------------------------------------------------------
+# Operating System & IDE Artifacts
+# ------------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ------------------------------------------------------------------------------
+# Node.js & Web Applications (apps/backend, apps/frontend)
+# ------------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+coverage/
+.nyc_output/
+
+# TypeScript declaration cache
+*.tsbuildinfo
+next-env.d.ts
+
+# ------------------------------------------------------------------------------
+# Terraform Infrastructure as Code (infra/terraform)
+# ------------------------------------------------------------------------------
+# Local .terraform directory (compiled providers and modules)
+**/.terraform/*
+**/.terraform/
+
+# State files & crash logs (NEVER commit state files - state belongs in remote S3)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# CLI configuration and plan files
+*.tfplan
+tfplan
+*.tfrc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local variable overrides (sensitive values)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# ------------------------------------------------------------------------------
+# Ansible Configuration Management (infra/ansible)
+# ------------------------------------------------------------------------------
+*.retry
+.ansible/
+ansible-debug.log
+
+# ------------------------------------------------------------------------------
+# Docker & Container Engine (deploy/)
+# ------------------------------------------------------------------------------
+.docker/
+docker-compose.override.yml
+
+# ------------------------------------------------------------------------------
+# Python & Automation Utilities
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+/env/
+venv/
+.venv/
+ENV/
+!deploy/env/
+!deploy/env/**
+
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+!apps/frontend/lib/
+!apps/frontend/lib/**
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
