@@ -1,0 +1,45 @@
+---
+- name: Configure EC2 server
+  hosts: webservers
+  become: true
+  # gather_facts: false initially — we collect them only after the server is reachable.
+  gather_facts: false
+
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        delay: 10       # first check after 10s
+        timeout: 300    # give up after 5 minutes
+
+    # Facts depend on a live connection, so we gather them here after the wait.
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    # cloud-init runs package updates on first boot. If we don't wait for it,
+    # our apt tasks race against it and hit a dpkg lock error.
+    - name: Wait for cloud-init to complete
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+
+    # Wait for apt or dpkg processes to release any active file locks.
+    - name: Wait for apt lock to be released
+      ansible.builtin.shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+          sleep 3
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages to latest
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+
+  roles:
+    - docker_host
