@@ -1,0 +1,185 @@
+name: "CD - Production ECR Build & EC2 Deployment"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "deploy/**"
+      - ".github/workflows/cd-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment target"
+        required: true
+        default: "production"
+      tag_override:
+        description: "Optional container image tag override (defaults to commit SHA)"
+        required: false
+        default: ""
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # Job 1: Build Multi-Stage Docker Images & Push to Amazon ECR
+  # ============================================================================
+  build-and-push:
+    name: "Build & Push Images to Amazon ECR"
+    runs-on: ubuntu-latest
+    outputs:
+      ecr_registry: ${{ steps.login-ecr.outputs.registry }}
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+
+    steps:
+      - name: "Checkout Application Code"
+        uses: actions/checkout@v4
+
+      - name: "Set Image Tag"
+        id: set-tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag_override }}" ]; then
+            TAG="${{ github.event.inputs.tag_override }}"
+          else
+            TAG="${{ github.sha }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building and releasing with Image Tag: ${TAG}"
+
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Authenticate with AWS"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: "Log in to Amazon Elastic Container Registry (ECR)"
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: "Build & Push Backend Container Image"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/backend
+          file: ./apps/backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/zeetafin-backend:${{ steps.set-tag.outputs.tag }}
+            ${{ steps.login-ecr.outputs.registry }}/zeetafin-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: "Build & Push Frontend Container Image"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/frontend
+          file: ./apps/frontend/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://${{ secrets.EC2_HOST }}:3001/api
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/zeetafin-frontend:${{ steps.set-tag.outputs.tag }}
+            ${{ steps.login-ecr.outputs.registry }}/zeetafin-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================================
+  # Job 2: Connect to EC2 Host & Execute Rolling Deployment Engine
+  # ============================================================================
+  deploy-to-ec2:
+    name: "Deploy to AWS EC2 Infrastructure"
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout Application Code"
+        uses: actions/checkout@v4
+
+      - name: "Configure Secure SSH Key"
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: "Sync Production Manifests and Operational Scripts"
+        env:
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          echo "Syncing production compose manifests and deployment scripts..."
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${EC2_USER}@${EC2_HOST}" "mkdir -p /home/${EC2_USER}/zeetafin-app/scripts"
+          
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy/docker-compose.prod.yml \
+            "${EC2_USER}@${EC2_HOST}:/home/${EC2_USER}/zeetafin-app/docker-compose.prod.yml"
+
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy/scripts/deploy.sh \
+            "${EC2_USER}@${EC2_HOST}:/home/${EC2_USER}/zeetafin-app/scripts/deploy.sh"
+
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy/scripts/rollback.sh \
+            "${EC2_USER}@${EC2_HOST}:/home/${EC2_USER}/zeetafin-app/scripts/rollback.sh"
+
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy/scripts/healthcheck.sh \
+            "${EC2_USER}@${EC2_HOST}:/home/${EC2_USER}/zeetafin-app/scripts/healthcheck.sh"
+
+      - name: "Execute Deployment & Container Replacement on EC2"
+        env:
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          echo "Connecting to EC2 server (${EC2_HOST}) to execute container rollout..."
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${EC2_USER}@${EC2_HOST}" << 'EOF'
+            set -euo pipefail
+            cd /home/ubuntu/zeetafin-app
+            chmod +x scripts/deploy.sh scripts/rollback.sh scripts/healthcheck.sh
+
+            # Set environment variables for ECR auth & compose execution
+            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+            export AWS_DEFAULT_REGION="${{ secrets.AWS_REGION || 'us-east-1' }}"
+            export ECR_REGISTRY="${{ needs.build-and-push.outputs.ecr_registry }}"
+            export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+            export NEXT_PUBLIC_API_URL="http://${{ secrets.EC2_HOST }}:3001/api"
+
+            # Execute deployment engine
+            ./scripts/deploy.sh "${IMAGE_TAG}" "${ECR_REGISTRY}" "${AWS_DEFAULT_REGION}"
+          EOF
+
+      - name: "Automated External Availability Smoke Check"
+        run: |
+          echo "Performing external health check against deployed application..."
+          MAX_RETRIES=15
+          WAIT_TIME=5
+          SUCCESS=0
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i: Checking http://${{ secrets.EC2_HOST }}:3000..."
+            if curl -s -f -m 10 "http://${{ secrets.EC2_HOST }}:3000" > /dev/null; then
+              echo "Frontend is responding successfully on http://${{ secrets.EC2_HOST }}:3000!"
+              SUCCESS=1
+              break
+            fi
+            echo "Frontend not ready yet, sleeping ${WAIT_TIME}s..."
+            sleep $WAIT_TIME
+          done
+
+          if [ $SUCCESS -ne 1 ]; then
+            echo "Warning: Frontend probe did not respond with 200 OK within timeout. Please verify EC2 Security Group ingress rule for port 3000."
+          fi
+
+          echo "Deployment pipeline execution completed successfully!"
