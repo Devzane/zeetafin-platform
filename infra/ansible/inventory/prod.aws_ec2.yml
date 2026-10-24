@@ -1,0 +1,25 @@
+# ==============================================================================
+# AWS Dynamic Inventory Plugin Configuration for Ansible
+# ==============================================================================
+# Discovers EC2 instances dynamically using AWS tags.
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+
+keyed_groups:
+  # Key by project tag
+  - key: tags.Project
+    prefix: project
+  # Key by environment tag
+  - key: tags.Environment
+    prefix: env
+  # Key by role tag (e.g. webservers)
+  - key: tags.Role
+    prefix: role
+
+hostnames:
+  - ip-address
+  - dns-name
+
+compose:
+  ansible_host: public_ip_address
