@@ -1,0 +1,85 @@
+# ==============================================================================
+# Local Development Docker Compose Stack — ZeetaFin Platform
+# ==============================================================================
+# Architecture:
+#   - PostgreSQL 16 Alpine container with persistent named volume
+#   - NestJS Backend container (built from ../apps/backend)
+#   - Next.js Frontend container (built from ../apps/frontend)
+#
+# Usage:
+#   docker compose -f deploy/docker-compose.yml up --build -d
+# ==============================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: zeetafin-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zeetafin_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-zeetafin}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-zeetafin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zeetafin-network
+
+  backend:
+    build:
+      context: ../apps/backend
+      dockerfile: Dockerfile
+    image: zeetafin-backend:local
+    container_name: zeetafin-backend
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-zeetafin_secret}
+      DB_NAME: ${POSTGRES_DB:-zeetafin}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_zeetafin_devops_assignment_2026}
+      NODE_ENV: production
+      DB_SYNC: "true"
+      DB_LOGGING: "false"
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - zeetafin-network
+
+  frontend:
+    build:
+      context: ../apps/frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
+    image: zeetafin-frontend:local
+    container_name: zeetafin-frontend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - zeetafin-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  zeetafin-network:
+    driver: bridge
