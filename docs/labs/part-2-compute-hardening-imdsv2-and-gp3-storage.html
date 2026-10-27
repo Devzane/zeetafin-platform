@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Part 2: Compute Hardening, IMDSv2 & gp3 Storage — ZeetaFin Architectural Decisions Lab</title>
+<meta name="description" content="Part 2 of the ZeetaFin Architectural Lab Series: Deep dive into single EC2 sizing vs Kubernetes clusters, IMDSv2 anti-SSRF defenses, gp3 EBS baseline IOPS physics, and least-privilege IAM roles.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9; --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --line:#e2e8f0;
+  --c1:#6366f1; --c2:#0ea5e9; --c3:#f59e0b; --c4:#10b981; --c5:#8b5cf6; --c6:#ec4899;
+  --accent:#4f46e5; --accent-ink:#4338ca; --accent-soft:#eef2ff;
+  --mint:#10b981; --mint-soft:#ecfdf5; --amber:#f59e0b; --amber-soft:#fffbeb; --rose:#ef4444; --rose-soft:#fef2f2;
+  --night:#0a0f1d; --night-2:#11192e; --night-line:#1e293b; --night-ink:#f8fafc; --night-muted:#94a3b8;
+  --sans:"DM Sans","Helvetica Neue",Arial,sans-serif; --head:"Sora","DM Sans",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 3px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#070b14; --surface:#0e1526; --surface-2:#141f38; --ink:#f8fafc; --ink-2:#cbd5e1; --muted:#8899b5; --line:#1d2945;
+    --accent:#818cf8; --accent-ink:#a5b4fc; --accent-soft:#182042;
+    --mint:#34d3b4; --mint-soft:#062d25; --amber:#fbbf24; --amber-soft:#332205; --rose:#f87171; --rose-soft:#341318;
+    --shadow:0 1px 3px rgba(0,0,0,.5),0 14px 40px rgba(0,0,0,.45);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(900px 500px at 100% 0,color-mix(in srgb,var(--c2) 8%,transparent),transparent 70%),radial-gradient(800px 500px at 0 30%,color-mix(in srgb,var(--c1) 7%,transparent),transparent 70%),var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:18px;line-height:1.72;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--accent-ink);text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+.progress{position:fixed;inset:0 0 auto 0;height:5px;z-index:50;background:transparent}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--c2),var(--c1),var(--c4),var(--c3))}
+
+/* Hero */
+.hero{background:var(--night);color:var(--night-ink);position:relative;overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(750px 380px at 90% -10%,rgba(14,165,233,.65),transparent 62%),radial-gradient(650px 380px at 10% 110%,rgba(99,102,241,.45),transparent 62%),radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.2px) 0 0/26px 26px}
+.hero .wrap{padding-top:44px;padding-bottom:44px}
+.sbar{display:flex;gap:8px;margin:0 0 30px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.sbar::-webkit-scrollbar{display:none}
+@media (min-width:900px){.sbar{flex-wrap:wrap;overflow:visible}}
+.sbar .p{display:inline-flex;align-items:center;gap:9px;flex:none;padding:6px 14px 6px 6px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:#cbd5e1;text-decoration:none;font:600 13px var(--head);transition:all .18s}
+.sbar .p i{width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font-style:normal;font-size:12px}
+.sbar .p:hover{background:rgba(255,255,255,.14);color:#fff}
+.sbar .p.on{background:#fff;color:#0a0f1d;border-color:#fff}
+
+h1{font-family:var(--head);font-weight:800;font-size:clamp(34px,5vw,56px);line-height:1.08;letter-spacing:-.035em;margin:0;max-width:22ch;color:#fff}
+.dek{font-size:clamp(17px,1.9vw,21px);line-height:1.55;color:#cbd5e1;max-width:60ch;margin:20px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin:24px 0 0;font-family:var(--head);font-size:13.5px;color:var(--night-muted)}
+.meta span{display:inline-flex;gap:8px;align-items:center}
+.tools{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0}
+.tool{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 13.5px var(--head)}
+.hero-art{margin-top:34px;border:1px solid rgba(255,255,255,.2);border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));padding:12px;box-shadow:0 30px 80px rgba(0,0,0,.4);backdrop-filter:blur(4px)}
+.hero-art>svg{display:block;width:100%;height:auto}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:56px;align-items:start;padding-top:56px}
+@media (max-width:960px){.layout{grid-template-columns:1fr;gap:32px}}
+nav.toc{position:sticky;top:24px;font-family:var(--head);font-size:13.5px;max-height:calc(100vh - 48px);overflow:auto}
+nav.toc h2{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 12px;letter-spacing:.04em;text-transform:uppercase}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:1.5px solid var(--line)}
+nav.toc a{display:block;padding:6px 0 6px 16px;margin-left:-1.5px;border-left:1.5px solid transparent;color:var(--muted);text-decoration:none;line-height:1.35;transition:color .15s}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.on{color:var(--accent);border-left-color:var(--accent);font-weight:700}
+nav.toc li.sub a{padding-left:30px;font-size:12.5px}
+.sidecard{margin-top:26px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--muted);box-shadow:var(--shadow)}
+.sidecard b{display:block;color:var(--ink);font-family:var(--head);font-size:13.5px;margin-bottom:4px}
+
+article{min-width:0;max-width:840px}
+article h2{font-family:var(--head);font-weight:700;font-size:clamp(26px,3.2vw,36px);line-height:1.2;letter-spacing:-.025em;margin:80px 0 16px;color:var(--ink);scroll-margin-top:20px;display:flex;gap:14px;align-items:center;padding-bottom:14px;border-bottom:2px solid var(--line)}
+article h2 .hi{width:46px;height:46px;border-radius:14px;background:var(--hc,var(--c2));color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 8px 20px color-mix(in srgb,var(--hc,var(--c2)) 35%,transparent)}
+article h2 .hi svg{width:24px;height:24px;stroke-width:2}
+article h2:first-child{margin-top:0}
+
+article h3{font-family:var(--head);font-weight:700;font-size:20px;line-height:1.3;margin:44px 0 10px;color:var(--ink);scroll-margin-top:20px;letter-spacing:-.01em;background:linear-gradient(90deg,color-mix(in srgb,var(--c2) 12%,transparent),transparent 85%);border-left:6px solid var(--c2);padding:12px 18px;border-radius:0 14px 14px 0}
+article p{margin:0 0 1.15em}
+article strong,article b{color:var(--ink);font-weight:700}
+code{font-family:var(--mono);font-size:.84em;background:color-mix(in srgb,var(--c2) 12%,transparent);color:var(--accent-ink);padding:.12em .45em;border-radius:6px;font-weight:500}
+.lead{font-size:1.15em;color:var(--ink);line-height:1.68}
+
+/* Code & Term */
+.code,.term{margin:24px 0 28px;border-radius:16px;overflow:hidden;background:var(--night);border:1px solid #223055;box-shadow:0 14px 40px rgba(10,15,29,.25)}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,#152042,#0d152d);border-bottom:1px solid #1f2c4e;font-family:var(--mono);font-size:12.5px;color:#8f9cb8}
+.bar .dots{display:flex;gap:6px}.bar .dots i{width:10px;height:10px;border-radius:50%;display:block}
+.bar .dots i:nth-child(1){background:#ff5f57}.bar .dots i:nth-child(2){background:#febc2e}.bar .dots i:nth-child(3){background:#28c840}
+.bar .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.bar .tag{font-family:var(--head);font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#1a2750;color:#a5b4fc}
+.copy{all:unset;cursor:pointer;display:inline-flex;gap:6px;align-items:center;font-family:var(--head);font-size:12px;color:#a5b4fc;padding:4px 9px;border-radius:7px;border:1px solid #273766;transition:all .15s}
+.copy:hover{background:#1a2750;color:#fff}.copy.copied{color:#34d3b4;border-color:#34d3b4;background:rgba(52,211,180,.1)}
+pre{margin:0;font-family:var(--mono);font-size:14px;line-height:1.68;color:#dce5f8;padding:16px 18px;overflow-x:auto;tab-size:2}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+
+/* Callouts */
+.callout{display:flex;gap:14px;padding:18px 20px;border-radius:16px;margin:28px 0;border-left-width:6px;border-left-style:solid;box-shadow:var(--shadow);font-size:16px;line-height:1.62;color:var(--ink-2)}
+.callout>svg{width:30px;height:30px;padding:5px;border-radius:50%;color:#fff;margin-top:2px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.callout b.t{display:block;font-family:var(--head);color:var(--ink);margin-bottom:3px;font-weight:700}
+.callout p{margin:0 0 .5em}.callout p:last-child{margin:0}
+.callout.info{background:var(--accent-soft);border-left-color:var(--accent)}.callout.info>svg{background:var(--accent)}
+.callout.warn{background:var(--amber-soft);border-left-color:var(--amber)}.callout.warn>svg{background:var(--amber)}
+.callout.ok{background:var(--mint-soft);border-left-color:var(--mint)}.callout.ok>svg{background:var(--mint)}
+.callout.bad{background:var(--rose-soft);border-left-color:var(--rose)}.callout.bad>svg{background:var(--rose)}
+
+/* Tables */
+.tbl{overflow-x:auto;margin:24px 0 28px;border:1px solid color-mix(in srgb,var(--c2) 22%,var(--line));border-radius:16px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;font-size:15px;font-family:var(--sans)}
+th,td{text-align:left;padding:12px 18px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--head);font-weight:700;font-size:13.5px;color:var(--accent-ink);background:color-mix(in srgb,var(--c2) 14%,var(--surface));border-bottom:2px solid color-mix(in srgb,var(--c2) 32%,var(--line))}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 65%,var(--surface))}
+td:first-child{color:var(--ink);font-weight:600;border-right:1px solid var(--line)}
+
+/* Decision Card */
+.decision-card{border:1px solid var(--line);border-radius:18px;background:var(--surface);padding:24px;margin:28px 0;box-shadow:var(--shadow);border-top:4px solid var(--c2)}
+.decision-card h4{margin-top:0;font-size:19px;color:var(--ink);display:flex;align-items:center;justify-content:space-between}
+.decision-card .badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:color-mix(in srgb,var(--c2) 15%,transparent);color:var(--c2)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:16px}
+@media (max-width:720px){.grid-2{grid-template-columns:1fr}}
+.box{background:var(--surface-2);border-radius:12px;padding:14px;border:1px solid var(--line)}
+.box b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px}
+
+/* Pager */
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:60px 0 0}
+.pager a{display:block;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:16px 20px;text-decoration:none;color:var(--ink);box-shadow:var(--shadow);font-family:var(--head);font-weight:700;transition:border-color .15s}
+.pager a small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-bottom:4px}
+.pager a:hover{border-color:var(--accent)}.pager .r{text-align:right}
+
+footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 64px;font-family:var(--head);font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="progress"><i></i></div>
+
+<header class="hero"><div class="wrap">
+  <nav class="sbar" aria-label="Lab series">
+    <a class="p" href="part-1-cloud-perimeter-and-zero-nat-networking.html" style="--c:#6366f1"><i>1</i><span>Perimeter &amp; Zero-NAT</span></a>
+    <a class="p on" href="part-2-compute-hardening-imdsv2-and-gp3-storage.html" style="--c:#0ea5e9"><i>2</i><span>Compute &amp; IMDSv2</span></a>
+    <a class="p" href="part-3-domain-monolith-alpine-containers-and-postgres.html" style="--c:#10b981"><i>3</i><span>Monolith &amp; Containers</span></a>
+    <a class="p" href="part-4-zero-downtime-deployments-and-instant-rollback.html" style="--c:#f59e0b"><i>4</i><span>Deployments &amp; SRE</span></a>
+  </nav>
+
+  <h1>Part 2: Compute Hardening, IMDSv2 &amp; gp3 Storage</h1>
+  <p class="dek">Why we chose a single hardened EC2 node over an expensive Kubernetes cluster, neutralized Server-Side Request Forgery (SSRF) using IMDSv2 hop-limit controls, and leveraged gp3 storage physics to guarantee 3,000 IOPS for our database without paying enterprise markups.</p>
+
+  <div class="meta">
+    <span><strong>Author:</strong> Abdulmuiz (Devzane)</span>
+    <span><strong>Series:</strong> Architectural Decisions &amp; SRE Masterclass</span>
+    <span><strong>Focus:</strong> AWS Nitro • IMDSv2 Anti-SSRF • EBS gp3 IOPS • IAM Least Privilege</span>
+    <span><strong>Reading Time:</strong> ~40 min read</span>
+  </div>
+
+  <div class="tools">
+    <span class="tool">Ubuntu 24.04 LTS</span>
+    <span class="tool">t3.medium (4GB RAM)</span>
+    <span class="tool">IMDSv2 Hop-Limit = 1</span>
+    <span class="tool">EBS gp3 3000 IOPS</span>
+    <span class="tool">Forward-Compatible IAM</span>
+  </div>
+
+  <!-- Custom Architectural SVG Diagram -->
+  <div class="hero-art">
+    <svg viewBox="0 0 1080 390" role="img" aria-label="ZeetaFin Compute Hardening and IMDSv2 Anti-SSRF Architecture">
+      <defs>
+        <linearGradient id="g-nitro" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f172a" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0.95"/>
+        </linearGradient>
+        <linearGradient id="g-kernel" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#0e1526" stop-opacity="0.95"/>
+        </linearGradient>
+        <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+        </marker>
+        <marker id="arr-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d3b4"/>
+        </marker>
+      </defs>
+
+      <!-- AWS Nitro Hypervisor Outer Box -->
+      <rect x="30" y="25" width="1020" height="340" rx="18" fill="url(#g-nitro)" stroke="#0ea5e9" stroke-width="2"/>
+      <text x="55" y="55" fill="#38bdf8" font-family="Sora, sans-serif" font-size="14" font-weight="700">⚡ AWS Nitro Hypervisor: EC2 Compute Node (t3.medium • 2 vCPU, 4GB RAM)</text>
+
+      <!-- IMDSv2 Endpoint (Host Level) -->
+      <rect x="55" y="85" width="280" height="120" rx="12" fill="#11192e" stroke="#10b981" stroke-width="1.8"/>
+      <text x="75" y="112" fill="#6ee7b7" font-family="Sora, sans-serif" font-size="13" font-weight="700">🛡️ IMDSv2 Shield</text>
+      <text x="75" y="134" fill="#cbd5e1" font-family="JetBrains Mono, monospace" font-size="11">169.254.169.254</text>
+      <text x="75" y="156" fill="#94a3b8" font-family="DM Sans, sans-serif" font-size="12">http_tokens = required</text>
+      <text x="75" y="176" fill="#34d3b4" font-family="JetBrains Mono, monospace" font-size="11.5">hop_limit = 1 (TTL=1)</text>
+
+      <!-- Encrypted gp3 Root Storage -->
+      <rect x="55" y="225" width="280" height="120" rx="12" fill="#11192e" stroke="#6366f1" stroke-width="1.8"/>
+      <text x="75" y="252" fill="#c7d2fe" font-family="Sora, sans-serif" font-size="13" font-weight="700">💽 Encrypted EBS Root Volume</text>
+      <text x="75" y="274" fill="#a5b4fc" font-family="JetBrains Mono, monospace" font-size="11">Volume: 20 GB (gp3)</text>
+      <text x="75" y="296" fill="#34d3b4" font-family="Sora, sans-serif" font-size="12" font-weight="700">3,000 Baseline IOPS (Free)</text>
+      <text x="75" y="318" fill="#94a3b8" font-family="DM Sans, sans-serif" font-size="12">125 MB/s Throughput • $1.60/mo</text>
+
+      <!-- Linux Host Kernel -->
+      <rect x="370" y="85" width="650" height="260" rx="14" fill="url(#g-kernel)" stroke="#334155" stroke-width="1.8"/>
+      <text x="395" y="115" fill="#f8fafc" font-family="Sora, sans-serif" font-size="13.5" font-weight="700">🐧 Ubuntu 24.04 LTS Kernel Space (Network Namespace: Host)</text>
+
+      <!-- Docker Bridge -->
+      <rect x="395" y="135" width="600" height="190" rx="12" fill="#070b14" stroke="#6366f1" stroke-width="1.8" stroke-dasharray="4 4"/>
+      <text x="415" y="160" fill="#a5b4fc" font-family="Sora, sans-serif" font-size="12" font-weight="700">🐳 Isolated Docker Bridge Network (zeetafin-prod-net • Network Hop #2)</text>
+
+      <!-- Backend Container -->
+      <rect x="415" y="175" width="270" height="135" rx="10" fill="#1e293b" stroke="#0ea5e9"/>
+      <text x="430" y="200" fill="#fff" font-family="Sora, sans-serif" font-size="12" font-weight="700">zeetafin-backend-prod</text>
+      <text x="430" y="222" fill="#7dd3fc" font-family="JetBrains Mono, monospace" font-size="10.5">NestJS 10 • UID 1000 (node)</text>
+      <text x="430" y="244" fill="#cbd5e1" font-family="DM Sans, sans-serif" font-size="11.5">Unprivileged User Execution</text>
+      <text x="430" y="280" fill="#f87171" font-family="Sora, sans-serif" font-size="11" font-weight="700">SSRF Attempt ➔ Hop TTL Expiry!</text>
+
+      <!-- Database Container -->
+      <rect x="710" y="175" width="270" height="135" rx="10" fill="#1e293b" stroke="#10b981"/>
+      <text x="725" y="200" fill="#fff" font-family="Sora, sans-serif" font-size="12" font-weight="700">zeetafin-db-prod</text>
+      <text x="725" y="222" fill="#6ee7b7" font-family="JetBrains Mono, monospace" font-size="10.5">PostgreSQL 16 Alpine</text>
+      <text x="725" y="244" fill="#cbd5e1" font-family="DM Sans, sans-serif" font-size="11.5">Named Volume: pgdata</text>
+      <text x="725" y="280" fill="#34d3b4" font-family="Sora, sans-serif" font-size="11" font-weight="700">Direct ACID Flush to gp3 Disk</text>
+
+      <!-- Blocked Arrow from Container to IMDS -->
+      <path d="M 415 250 L 340 160" stroke="#f87171" stroke-width="2.2" stroke-dasharray="4 4" marker-end="url(#arr-red)"/>
+      <text x="320" y="215" fill="#f87171" font-family="Sora, sans-serif" font-size="11" font-weight="700">TTL=0 (Dropped)</text>
+    </svg>
+  </div>
+</div></header>
+
+<div class="wrap"><div class="layout">
+
+<nav class="toc">
+  <h2>Chapter 2 Contents</h2>
+  <ol>
+    <li><a href="#compute-sizing">1. Compute Density vs EKS Bloat</a></li>
+    <li><a href="#imdsv2-deepdive">2. IMDSv2 Anti-SSRF Defense</a></li>
+    <li><a href="#ebs-gp3-physics">3. Storage Physics: gp3 vs gp2</a></li>
+    <li><a href="#iam-profile">4. Forward-Compatible IAM Roles</a></li>
+    <li><a href="#terraform-compute">5. Compute Code Anatomy</a></li>
+    <li><a href="#forensic-scenarios">6. SRE Incident Forensics</a></li>
+    <li><a href="#hands-on-drill">7. Hands-on Verification Lab</a></li>
+  </ol>
+
+  <div class="sidecard">
+    <b>Chapter 2 Impact</b>
+    EKS Control Plane Fee Cut: <strong>$73.00/mo</strong><br/>
+    K8s Node Memory Reclaimed: <strong>~1.4 GB</strong><br/>
+    SSRF Credential Exfiltration: <strong>0% Feasibility</strong><br/>
+    <strong>Net Monthly Compute Savings: ~$140.00</strong>
+  </div>
+</nav>
+
+<article>
+
+<!-- SECTION 1 -->
+<h2 id="compute-sizing"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></span>1. Compute Density vs. Kubernetes Cluster Bloat</h2>
+
+<p class="lead">In modern cloud conversations, the knee-jerk answer to hosting containerized workloads is "spin up an Amazon EKS cluster". But for an enterprise startup or financial system processing thousands of transactions a day, deploying Kubernetes is often an expensive architectural mistake.</p>
+
+<p>Consider the structural overhead of an Amazon EKS cluster:</p>
+<ul>
+  <li><strong>The Control Plane Tax:</strong> AWS charges a flat <strong>$73.00 / month</strong> ($0.10/hour) just to keep the Kubernetes control plane running.</li>
+  <li><strong>Daemon Memory Tax:</strong> In a Kubernetes node, system agents (the Kubelet, kube-proxy, CoreDNS, AWS VPC CNI, and logging daemons) consume <strong>1.2 GB to 1.5 GB of RAM</strong> before your application containers start.</li>
+  <li><strong>Compute Sizing Inflation:</strong> To run our 3-tier financial ERP (Next.js + NestJS + Postgres), Kubernetes requires at least two <code>t3.medium</code> or <code>t3.large</code> worker nodes to achieve high-availability quorum, driving monthly costs past <strong>$150.00 to $220.00</strong>.</li>
+</ul>
+
+<p>By selecting a single hardened <code>t3.medium</code> EC2 instance (2 vCPU, 4GB RAM) running native Docker CE, <strong>100% of the memory and CPU are dedicated to the application and database</strong>. Total compute cost: <strong>~$25/month</strong> (or ~$14/month on an EC2 Compute Savings Plan).</p>
+
+<!-- SECTION 2 -->
+<h2 id="imdsv2-deepdive"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>2. Decision Deep-Dive: IMDSv2 Anti-SSRF Defense</h2>
+
+<div class="decision-card">
+  <h4>Decision: Enforcing IMDSv2 with <code>http_put_response_hop_limit = 1</code> <span class="badge">Security Hardening</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L166-170</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made (Importance &amp; Rationale)</b>
+      <p><strong>Neutralizing Server-Side Request Forgery:</strong> In legacy IMDSv1, any application flaw that allowed user-controlled HTTP requests (e.g., an invoice generator scraping an external image) allowed an attacker to issue a simple <code>GET http://169.254.169.254/latest/meta-data/iam/security-credentials/</code> and steal the temporary AWS IAM keys of the instance role. IMDSv2 mandates a signed <code>PUT</code> session token. Setting <code>http_put_response_hop_limit = 1</code> guarantees that containerized workloads (which are 2 network hops away across the bridge interface) cannot exfiltrate host instance credentials because the packet's TTL expires at the bridge interface.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Operational Trade-off</b>
+      <p>Outdated third-party monitoring agents or legacy CLI tools that do not support IMDSv2 token acquisition will fail to resolve IAM credentials.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better (The Enterprise Alternative)</b>
+      <p>Fine-grained AWS IAM Roles for Service Accounts (IRSA) or ECS Task Roles where each container has its own scoped identity, rather than an instance-wide profile.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost &amp; Reliability Impact</b>
+      <p><strong>$0.00 cost.</strong> Maximum security yield: completely eliminates the #1 attack vector for cloud account takeover.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<h2 id="ebs-gp3-physics"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>3. Storage Physics: gp3 vs. gp2 IOPS Math</h2>
+
+<div class="decision-card">
+  <h4>Decision: 20 GB Encrypted gp3 Root EBS Volume <span class="badge">Disk Virtualization</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L172-177</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made (Importance &amp; Rationale)</b>
+      <p>In older <code>gp2</code> volumes, baseline IOPS scaled linearly with disk size at 3 IOPS per GB. A 20 GB volume only had 60 baseline IOPS, causing database write-ahead log (WAL) flushes to freeze under minimal concurrency. In <code>gp3</code>, AWS decoupled IOPS from volume size: <strong>every gp3 volume receives 3,000 IOPS and 125 MB/s throughput unconditionally</strong>, even at 20 GB!</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Operational Trade-off</b>
+      <p>3,000 IOPS and 125 MB/s throughput has an upper bound. Extreme high-frequency trading platforms requiring >20,000 IOPS would necessitate provisioned IOPS (<code>io2</code>) volumes.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Amazon Aurora Serverless v2 PostgreSQL with distributed storage automatically replicated 6 times across 3 Availability Zones with continuous backup to Amazon S3.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost Economics</b>
+      <p><code>gp3</code> costs $0.08/GB-month (20% cheaper than gp2). The 20 GB volume costs just <strong>$1.60/month</strong> while outperforming a 500 GB gp2 volume costing $50.00/month.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4 -->
+<h2 id="iam-profile"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg></span>4. Forward-Compatible Least-Privilege IAM Roles</h2>
+
+<div class="decision-card">
+  <h4>Decision: Zero-Permission Forward-Compatible Instance Profile <span class="badge">IAM Security</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L127-154</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made (Importance &amp; Rationale)</b>
+      <p>When provisioning an EC2 instance in Phase 1, the app makes zero AWS API calls. However, attaching an IAM instance profile after an instance is launched can require terminating and recreating the instance in older AWS workflows. We provision the IAM role and instance profile with zero policies attached. It costs nothing and allows future phases (like ECR image pulls) to attach policies with zero downtime.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Any permissions attached to the host role are theoretically accessible by any process running directly on the host (outside containers).</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>OpenID Connect (OIDC) identity federation where short-lived tokens are exchanged for temporary STS credentials, eliminating static roles entirely.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail</b>
+      <p>Least-privilege principle: the role has zero permissions attached by default, guaranteeing that accidental credential exposure yields zero AWS cloud access.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5 -->
+<h2 id="terraform-compute"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>5. Compute Code Anatomy</h2>
+
+<div class="code">
+  <div class="bar">
+    <span class="dots"><i></i><i></i><i></i></span>
+    <span class="fn">infra/terraform/environments/prod/main.tf (Compute Hardening)</span>
+    <span class="tag">HCL</span>
+    <button class="copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>
+  </div>
+  <pre><code># Canonical Ubuntu 24.04 LTS (Noble Numbat)
+resource "aws_instance" "main" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.medium" # 2 vCPU, 4GB RAM
+  subnet_id              = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.ec2.id]
+  key_name               = aws_key_pair.main.key_name
+  iam_instance_profile   = aws_iam_instance_profile.ec2.name
+
+  # STRICT IMDSv2 ENFORCEMENT (Neutralizes SSRF)
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"     # Blocks IMDSv1 calls with HTTP 401
+    http_put_response_hop_limit = 1              # Limits packet TTL to exactly 1 hop
+  }
+
+  # HIGH-PERFORMANCE LOW-COST STORAGE (3,000 Baseline IOPS)
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = 20
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  tags = { Name = "zeetafin-prod-server" }
+}</code></pre>
+</div>
+
+<!-- SECTION 6 -->
+<h2 id="forensic-scenarios"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>6. SRE Incident Forensics</h2>
+
+<h3>Scenario 1: The Container SSRF Exfiltration Attempt</h3>
+<p><strong>The Incident:</strong> An attacker exploits an SSRF flaw inside the NestJS application container and tries to pull AWS credentials.</p>
+<div class="term">
+  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">Container Shell (UID 1000)</span><span class="tag bad">ATTACK ATTEMPT</span></div>
+  <pre><code># 1. Attacker attempts legacy IMDSv1 GET request:
+$ curl -i http://169.254.169.254/latest/meta-data/iam/security-credentials/
+HTTP/1.1 401 Unauthorized
+Content-Type: text/plain
+
+# 2. Attacker attempts to acquire an IMDSv2 session token:
+$ curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60"
+curl: (28) Connection timed out after 3000 milliseconds</code></pre>
+</div>
+<p><strong>Forensic Finding:</strong> The IMDSv1 call was rejected immediately by the hypervisor with HTTP 401. The IMDSv2 call timed out because the packet traversed the Docker bridge network (hop #1), reducing its IP TTL to 0. When it reached the host interface, it was dropped! <strong>Result: Zero credential leakage.</strong></p>
+
+<!-- SECTION 7 -->
+<h2 id="hands-on-drill"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 12.6a2 2 0 0 1 0 2.8l-5.6 5.6a2 2 0 0 1-2.8 0L3 11.4a2 2 0 0 1 0-2.8L8.6 3a2 2 0 0 1 2.8 0z"/></svg></span>7. Hands-on Verification Lab</h2>
+
+<ol class="steps">
+  <li>
+    <b>Verify IMDSv2 Hardening on Live EC2 Instance</b>
+    <div class="term">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">EC2 Host Shell</span><span class="tag">VERIFY</span></div>
+      <pre><code># 1. Attempt IMDSv1 (Should fail with 401)
+curl -i http://169.254.169.254/latest/meta-data/
+
+# 2. Issue valid IMDSv2 Token Request from host
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-type</code></pre>
+    </div>
+  </li>
+  <li>
+    <b>Verify 3,000 IOPS Baseline on gp3 Storage</b>
+    <div class="term">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">EC2 Host Shell</span><span class="tag">BENCHMARK</span></div>
+      <pre><code># Measure sequential write speed directly to disk
+sudo dd if=/dev/zero of=/tmp/test.img bs=1M count=200 conv=fdatasync</code></pre>
+    </div>
+  </li>
+</ol>
+
+<div class="pager">
+  <a href="part-1-cloud-perimeter-and-zero-nat-networking.html">
+    <small>Previous Chapter ➔</small>
+    Part 1: Cloud Perimeter &amp; Zero-NAT Networking
+  </a>
+  <a class="r" href="part-3-domain-monolith-alpine-containers-and-postgres.html">
+    <small>Next Chapter ➔</small>
+    Part 3: Domain Monolith, Alpine &amp; Postgres Persistence
+  </a>
+</div>
+
+</article>
+</div></div>
+
+<footer>
+  <div class="wrap">
+    ZeetaFin Cloud Platform • Architectural Decision Lab Series • Abdulmuiz (Devzane) • <a href="https://github.com/Devzane">GitHub</a>
+  </div>
+</footer>
+
+<script>
+// Scroll Progress
+const bar = document.querySelector('.progress i');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  bar.style.width = ((h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100) + '%';
+});
+
+// TOC Highlighting
+const links = [...document.querySelectorAll('nav.toc a')];
+const obs = new IntersectionObserver(es => {
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('on'));
+      const a = links.find(l => l.getAttribute('href') === '#' + e.target.id);
+      if (a) a.classList.add('on');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+document.querySelectorAll('article h2[id]').forEach(h => obs.observe(h));
+</script>
+</body>
+</html>
