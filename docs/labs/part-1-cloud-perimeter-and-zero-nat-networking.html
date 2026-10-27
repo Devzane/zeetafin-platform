@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Part 1: Cloud Perimeter & Zero-NAT Networking — ZeetaFin Architectural Decisions Lab</title>
+<meta name="description" content="Part 1 of the ZeetaFin Architectural Lab Series: Deep dive into VPC CIDR design, zero-NAT egress architecture, direct hypervisor security group ingress vs ALB, and cost-optimized perimeter reliability.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9; --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --line:#e2e8f0;
+  --c1:#6366f1; --c2:#0ea5e9; --c3:#f59e0b; --c4:#10b981; --c5:#8b5cf6; --c6:#ec4899;
+  --accent:#4f46e5; --accent-ink:#4338ca; --accent-soft:#eef2ff;
+  --mint:#10b981; --mint-soft:#ecfdf5; --amber:#f59e0b; --amber-soft:#fffbeb; --rose:#ef4444; --rose-soft:#fef2f2;
+  --night:#0a0f1d; --night-2:#11192e; --night-line:#1e293b; --night-ink:#f8fafc; --night-muted:#94a3b8;
+  --sans:"DM Sans","Helvetica Neue",Arial,sans-serif; --head:"Sora","DM Sans",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 3px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#070b14; --surface:#0e1526; --surface-2:#141f38; --ink:#f8fafc; --ink-2:#cbd5e1; --muted:#8899b5; --line:#1d2945;
+    --accent:#818cf8; --accent-ink:#a5b4fc; --accent-soft:#182042;
+    --mint:#34d3b4; --mint-soft:#062d25; --amber:#fbbf24; --amber-soft:#332205; --rose:#f87171; --rose-soft:#341318;
+    --shadow:0 1px 3px rgba(0,0,0,.5),0 14px 40px rgba(0,0,0,.45);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(900px 500px at 100% 0,color-mix(in srgb,var(--c1) 8%,transparent),transparent 70%),radial-gradient(800px 500px at 0 30%,color-mix(in srgb,var(--c2) 7%,transparent),transparent 70%),var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:18px;line-height:1.72;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--accent-ink);text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+.progress{position:fixed;inset:0 0 auto 0;height:5px;z-index:50;background:transparent}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--c1),var(--c2),var(--c4),var(--c3),var(--c6))}
+
+/* Hero */
+.hero{background:var(--night);color:var(--night-ink);position:relative;overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(750px 380px at 90% -10%,rgba(99,102,241,.65),transparent 62%),radial-gradient(650px 380px at 10% 110%,rgba(14,165,233,.45),transparent 62%),radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.2px) 0 0/26px 26px}
+.hero .wrap{padding-top:44px;padding-bottom:44px}
+.sbar{display:flex;gap:8px;margin:0 0 30px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.sbar::-webkit-scrollbar{display:none}
+@media (min-width:900px){.sbar{flex-wrap:wrap;overflow:visible}}
+.sbar .p{display:inline-flex;align-items:center;gap:9px;flex:none;padding:6px 14px 6px 6px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:#cbd5e1;text-decoration:none;font:600 13px var(--head);transition:all .18s}
+.sbar .p i{width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font-style:normal;font-size:12px}
+.sbar .p:hover{background:rgba(255,255,255,.14);color:#fff}
+.sbar .p.on{background:#fff;color:#0a0f1d;border-color:#fff}
+
+h1{font-family:var(--head);font-weight:800;font-size:clamp(34px,5vw,56px);line-height:1.08;letter-spacing:-.035em;margin:0;max-width:22ch;color:#fff}
+.dek{font-size:clamp(17px,1.9vw,21px);line-height:1.55;color:#cbd5e1;max-width:60ch;margin:20px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin:24px 0 0;font-family:var(--head);font-size:13.5px;color:var(--night-muted)}
+.meta span{display:inline-flex;gap:8px;align-items:center}
+.tools{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0}
+.tool{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 13.5px var(--head)}
+.hero-art{margin-top:34px;border:1px solid rgba(255,255,255,.2);border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));padding:12px;box-shadow:0 30px 80px rgba(0,0,0,.4);backdrop-filter:blur(4px)}
+.hero-art>svg{display:block;width:100%;height:auto}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:56px;align-items:start;padding-top:56px}
+@media (max-width:960px){.layout{grid-template-columns:1fr;gap:32px}}
+nav.toc{position:sticky;top:24px;font-family:var(--head);font-size:13.5px;max-height:calc(100vh - 48px);overflow:auto}
+nav.toc h2{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 12px;letter-spacing:.04em;text-transform:uppercase}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:1.5px solid var(--line)}
+nav.toc a{display:block;padding:6px 0 6px 16px;margin-left:-1.5px;border-left:1.5px solid transparent;color:var(--muted);text-decoration:none;line-height:1.35;transition:color .15s}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.on{color:var(--accent);border-left-color:var(--accent);font-weight:700}
+nav.toc li.sub a{padding-left:30px;font-size:12.5px}
+.sidecard{margin-top:26px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--muted);box-shadow:var(--shadow)}
+.sidecard b{display:block;color:var(--ink);font-family:var(--head);font-size:13.5px;margin-bottom:4px}
+
+article{min-width:0;max-width:840px}
+article h2{font-family:var(--head);font-weight:700;font-size:clamp(26px,3.2vw,36px);line-height:1.2;letter-spacing:-.025em;margin:80px 0 16px;color:var(--ink);scroll-margin-top:20px;display:flex;gap:14px;align-items:center;padding-bottom:14px;border-bottom:2px solid var(--line)}
+article h2 .hi{width:46px;height:46px;border-radius:14px;background:var(--hc,var(--c1));color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 8px 20px color-mix(in srgb,var(--hc,var(--c1)) 35%,transparent)}
+article h2 .hi svg{width:24px;height:24px;stroke-width:2}
+article h2:first-child{margin-top:0}
+article h2:nth-of-type(6n+1){--hc:var(--c1)}article h2:nth-of-type(6n+2){--hc:var(--c2)}article h2:nth-of-type(6n+3){--hc:var(--c4)}article h2:nth-of-type(6n+4){--hc:var(--c3)}article h2:nth-of-type(6n+5){--hc:var(--c5)}article h2:nth-of-type(6n+6){--hc:var(--c6)}
+
+article h3{font-family:var(--head);font-weight:700;font-size:20px;line-height:1.3;margin:44px 0 10px;color:var(--ink);scroll-margin-top:20px;letter-spacing:-.01em;background:linear-gradient(90deg,color-mix(in srgb,var(--c1) 12%,transparent),transparent 85%);border-left:6px solid var(--c1);padding:12px 18px;border-radius:0 14px 14px 0}
+article h4{font-family:var(--head);font-weight:700;font-size:17px;margin:28px 0 8px;color:var(--ink)}
+article p{margin:0 0 1.15em}
+article ul,article ol{padding-left:1.3em;margin:0 0 1.25em}
+article li{margin:.4em 0}
+article strong,article b{color:var(--ink);font-weight:700}
+code{font-family:var(--mono);font-size:.84em;background:color-mix(in srgb,var(--c1) 12%,transparent);color:var(--accent-ink);padding:.12em .45em;border-radius:6px;font-weight:500}
+.lead{font-size:1.15em;color:var(--ink);line-height:1.68}
+
+/* Code & Term */
+.code,.term{margin:24px 0 28px;border-radius:16px;overflow:hidden;background:var(--night);border:1px solid #223055;box-shadow:0 14px 40px rgba(10,15,29,.25)}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,#152042,#0d152d);border-bottom:1px solid #1f2c4e;font-family:var(--mono);font-size:12.5px;color:#8f9cb8}
+.bar .dots{display:flex;gap:6px}.bar .dots i{width:10px;height:10px;border-radius:50%;display:block}
+.bar .dots i:nth-child(1){background:#ff5f57}.bar .dots i:nth-child(2){background:#febc2e}.bar .dots i:nth-child(3){background:#28c840}
+.bar .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.bar .tag{font-family:var(--head);font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#1a2750;color:#a5b4fc}
+.copy{all:unset;cursor:pointer;display:inline-flex;gap:6px;align-items:center;font-family:var(--head);font-size:12px;color:#a5b4fc;padding:4px 9px;border-radius:7px;border:1px solid #273766;transition:all .15s}
+.copy:hover{background:#1a2750;color:#fff}.copy.copied{color:#34d3b4;border-color:#34d3b4;background:rgba(52,211,180,.1)}
+pre{margin:0;font-family:var(--mono);font-size:14px;line-height:1.68;color:#dce5f8;padding:16px 18px;overflow-x:auto;tab-size:2}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+
+/* Callouts */
+.callout{display:flex;gap:14px;padding:18px 20px;border-radius:16px;margin:28px 0;border-left-width:6px;border-left-style:solid;box-shadow:var(--shadow);font-size:16px;line-height:1.62;color:var(--ink-2)}
+.callout>svg{width:30px;height:30px;padding:5px;border-radius:50%;color:#fff;margin-top:2px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.callout b.t{display:block;font-family:var(--head);color:var(--ink);margin-bottom:3px;font-weight:700}
+.callout p{margin:0 0 .5em}.callout p:last-child{margin:0}
+.callout.info{background:var(--accent-soft);border-left-color:var(--accent)}.callout.info>svg{background:var(--accent)}
+.callout.warn{background:var(--amber-soft);border-left-color:var(--amber)}.callout.warn>svg{background:var(--amber)}
+.callout.ok{background:var(--mint-soft);border-left-color:var(--mint)}.callout.ok>svg{background:var(--mint)}
+.callout.bad{background:var(--rose-soft);border-left-color:var(--rose)}.callout.bad>svg{background:var(--rose)}
+
+/* Tables */
+.tbl{overflow-x:auto;margin:24px 0 28px;border:1px solid color-mix(in srgb,var(--c1) 22%,var(--line));border-radius:16px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;font-size:15px;font-family:var(--sans)}
+th,td{text-align:left;padding:12px 18px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--head);font-weight:700;font-size:13.5px;color:var(--accent-ink);background:color-mix(in srgb,var(--c1) 14%,var(--surface));border-bottom:2px solid color-mix(in srgb,var(--c1) 32%,var(--line))}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 65%,var(--surface))}
+td:first-child{color:var(--ink);font-weight:600;border-right:1px solid var(--line)}
+
+/* Decision Card */
+.decision-card{border:1px solid var(--line);border-radius:18px;background:var(--surface);padding:24px;margin:28px 0;box-shadow:var(--shadow);border-top:4px solid var(--accent)}
+.decision-card h4{margin-top:0;font-size:19px;color:var(--ink);display:flex;align-items:center;justify-content:space-between}
+.decision-card .badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:16px}
+@media (max-width:720px){.grid-2{grid-template-columns:1fr}}
+.box{background:var(--surface-2);border-radius:12px;padding:14px;border:1px solid var(--line)}
+.box b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px}
+
+/* Pager */
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:60px 0 0}
+.pager a{display:block;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:16px 20px;text-decoration:none;color:var(--ink);box-shadow:var(--shadow);font-family:var(--head);font-weight:700;transition:border-color .15s}
+.pager a small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-bottom:4px}
+.pager a:hover{border-color:var(--accent)}.pager .r{text-align:right}
+
+footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 64px;font-family:var(--head);font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="progress"><i></i></div>
+
+<header class="hero"><div class="wrap">
+  <nav class="sbar" aria-label="Lab series">
+    <a class="p on" href="part-1-cloud-perimeter-and-zero-nat-networking.html" style="--c:#6366f1"><i>1</i><span>Perimeter &amp; Zero-NAT</span></a>
+    <a class="p" href="part-2-compute-hardening-imdsv2-and-gp3-storage.html" style="--c:#0ea5e9"><i>2</i><span>Compute &amp; IMDSv2</span></a>
+    <a class="p" href="part-3-domain-monolith-alpine-containers-and-postgres.html" style="--c:#10b981"><i>3</i><span>Monolith &amp; Containers</span></a>
+    <a class="p" href="part-4-zero-downtime-deployments-and-instant-rollback.html" style="--c:#f59e0b"><i>4</i><span>Deployments &amp; SRE</span></a>
+  </nav>
+
+  <h1>Part 1: Cloud Perimeter &amp; Zero-NAT Network Architecture</h1>
+  <p class="dek">An in-depth architectural breakdown of ZeetaFin's network topology: why we eliminated AWS Managed NAT Gateways to save $388/year, bypassed expensive ALBs, and enforced bank-grade perimeter security entirely through hypervisor-level security groups.</p>
+
+  <div class="meta">
+    <span><strong>Author:</strong> Abdulmuiz (Devzane)</span>
+    <span><strong>Series:</strong> Architectural Decisions &amp; SRE Masterclass</span>
+    <span><strong>Focus:</strong> AWS VPC • CIDR Math • Routing • Security Groups</span>
+    <span><strong>Reading Time:</strong> ~35 min read</span>
+  </div>
+
+  <div class="tools">
+    <span class="tool">VPC: 10.0.0.0/16</span>
+    <span class="tool">Subnet: 10.0.1.0/24</span>
+    <span class="tool">IGW Direct Route</span>
+    <span class="tool">Zero NAT Gateway</span>
+    <span class="tool">Hypervisor SG Filtering</span>
+  </div>
+
+  <!-- Custom Architectural SVG Diagram -->
+  <div class="hero-art">
+    <svg viewBox="0 0 1080 390" role="img" aria-label="ZeetaFin Zero-NAT Cloud Perimeter Network Topology">
+      <defs>
+        <linearGradient id="g-vpc" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95"/>
+        </linearGradient>
+        <linearGradient id="g-sub" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95"/>
+        </linearGradient>
+        <marker id="arr-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#818cf8"/>
+        </marker>
+        <marker id="arr-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d3b4"/>
+        </marker>
+        <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+        </marker>
+      </defs>
+
+      <!-- AWS Cloud Boundary -->
+      <rect x="220" y="20" width="840" height="350" rx="18" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="6 6"/>
+      <text x="245" y="48" fill="#94a3b8" font-family="Sora, sans-serif" font-size="13" font-weight="700">☁️ AWS Cloud Region: us-east-1</text>
+
+      <!-- External Clients -->
+      <rect x="20" y="70" width="160" height="70" rx="12" fill="#11192e" stroke="#6366f1" stroke-width="1.8"/>
+      <text x="35" y="98" fill="#fff" font-family="Sora, sans-serif" font-size="13" font-weight="700">Financial Users</text>
+      <text x="35" y="120" fill="#a5b4fc" font-family="JetBrains Mono, monospace" font-size="11">HTTPS / TCP 3000</text>
+
+      <rect x="20" y="165" width="160" height="70" rx="12" fill="#11192e" stroke="#0ea5e9" stroke-width="1.8"/>
+      <text x="35" y="193" fill="#fff" font-family="Sora, sans-serif" font-size="13" font-weight="700">API &amp; Swagger</text>
+      <text x="35" y="215" fill="#38bdf8" font-family="JetBrains Mono, monospace" font-size="11">REST / TCP 3001</text>
+
+      <rect x="20" y="260" width="160" height="70" rx="12" fill="#11192e" stroke="#f59e0b" stroke-width="1.8"/>
+      <text x="35" y="288" fill="#fff" font-family="Sora, sans-serif" font-size="13" font-weight="700">DevOps / CI SSH</text>
+      <text x="35" y="310" fill="#fcd34d" font-family="JetBrains Mono, monospace" font-size="11">SSH / TCP 22</text>
+
+      <!-- VPC -->
+      <rect x="250" y="65" width="780" height="285" rx="16" fill="url(#g-vpc)" stroke="#6366f1" stroke-width="2"/>
+      <text x="275" y="95" fill="#c7d2fe" font-family="Sora, sans-serif" font-size="14" font-weight="700">VPC: zeetafin-prod-vpc (10.0.0.0/16 — 65,536 IPs)</text>
+
+      <!-- Internet Gateway -->
+      <rect x="275" y="125" width="130" height="65" rx="10" fill="#1e1b4b" stroke="#818cf8" stroke-width="1.8"/>
+      <text x="290" y="152" fill="#fff" font-family="Sora, sans-serif" font-size="12" font-weight="700">Internet GW</text>
+      <text x="290" y="172" fill="#34d3b4" font-family="JetBrains Mono, monospace" font-size="10.5">0.0.0.0/0 (Free)</text>
+
+      <!-- Route Table -->
+      <rect x="275" y="220" width="150" height="75" rx="10" fill="#1e293b" stroke="#0ea5e9" stroke-width="1.8"/>
+      <text x="290" y="245" fill="#fff" font-family="Sora, sans-serif" font-size="12" font-weight="700">Route Table</text>
+      <text x="290" y="266" fill="#38bdf8" font-family="JetBrains Mono, monospace" font-size="10">0.0.0.0/0 ➔ igw</text>
+
+      <!-- Public Subnet -->
+      <rect x="460" y="105" width="540" height="225" rx="14" fill="url(#g-sub)" stroke="#38bdf8" stroke-width="1.8"/>
+      <text x="480" y="132" fill="#7dd3fc" font-family="Sora, sans-serif" font-size="13" font-weight="700">Public Subnet: 10.0.1.0/24 (AZ: us-east-1a • 251 usable IPs)</text>
+
+      <!-- Security Group -->
+      <rect x="480" y="148" width="500" height="165" rx="12" fill="#11192e" stroke="#10b981" stroke-width="1.8" stroke-dasharray="4 4"/>
+      <text x="500" y="172" fill="#6ee7b7" font-family="Sora, sans-serif" font-size="12" font-weight="700">🛡️ Hypervisor Firewall: zeetafin-prod-ec2-sg</text>
+
+      <!-- Inside Security Group: Host & Services -->
+      <rect x="500" y="185" width="140" height="110" rx="8" fill="#1e293b" stroke="#818cf8"/>
+      <text x="515" y="210" fill="#fff" font-family="Sora, sans-serif" font-size="11.5" font-weight="700">Next.js UI</text>
+      <text x="515" y="230" fill="#a5b4fc" font-family="JetBrains Mono, monospace" font-size="10">Port 3000</text>
+      <text x="515" y="255" fill="#34d3b4" font-family="Sora, sans-serif" font-size="10.5">✅ Allowed</text>
+
+      <rect x="660" y="185" width="140" height="110" rx="8" fill="#1e293b" stroke="#38bdf8"/>
+      <text x="675" y="210" fill="#fff" font-family="Sora, sans-serif" font-size="11.5" font-weight="700">NestJS API</text>
+      <text x="675" y="230" fill="#7dd3fc" font-family="JetBrains Mono, monospace" font-size="10">Port 3001</text>
+      <text x="675" y="255" fill="#34d3b4" font-family="Sora, sans-serif" font-size="10.5">✅ Allowed</text>
+
+      <rect x="820" y="185" width="140" height="110" rx="8" fill="#1e293b" stroke="#f87171"/>
+      <text x="835" y="210" fill="#fff" font-family="Sora, sans-serif" font-size="11.5" font-weight="700">PostgreSQL</text>
+      <text x="835" y="230" fill="#fca5a5" font-family="JetBrains Mono, monospace" font-size="10">Port 5432</text>
+      <text x="835" y="255" fill="#f87171" font-family="Sora, sans-serif" font-size="10.5">⛔ BLOCKED</text>
+
+      <!-- Connection Arrows -->
+      <path d="M 180 105 L 275 145" stroke="#818cf8" stroke-width="2" marker-end="url(#arr-blue)"/>
+      <path d="M 180 200 L 275 160" stroke="#0ea5e9" stroke-width="2" marker-end="url(#arr-blue)"/>
+      <path d="M 180 295 L 275 250" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr-blue)"/>
+
+      <path d="M 405 155 L 480 220" stroke="#34d3b4" stroke-width="2" marker-end="url(#arr-green)"/>
+      <path d="M 425 250 L 460 250" stroke="#34d3b4" stroke-width="2" marker-end="url(#arr-green)"/>
+    </svg>
+  </div>
+</div></header>
+
+<div class="wrap"><div class="layout">
+
+<nav class="toc">
+  <h2>Chapter 1 Contents</h2>
+  <ol>
+    <li><a href="#why-zero-nat">1. The Zero-NAT Architecture</a></li>
+    <li><a href="#decision-igw">2. Decision: Direct IGW Routing</a></li>
+    <li><a href="#decision-alb">3. Decision: Bypassing the ALB</a></li>
+    <li><a href="#decision-ip">4. Decision: Dynamic Public IPv4</a></li>
+    <li><a href="#code-anatomy">5. Terraform Code Anatomy</a></li>
+    <li><a href="#failure-scenarios">6. SRE Failure &amp; Triage Forensics</a></li>
+    <li><a href="#muscle-memory">7. Hands-on Verification Lab</a></li>
+  </ol>
+
+  <div class="sidecard">
+    <b>Chapter 1 Impact</b>
+    Idle NAT Cost Eliminated: <strong>$32.40/mo</strong><br/>
+    ALB Fee Eliminated: <strong>$16.20/mo</strong><br/>
+    Data Transfer Markups Cut: <strong>100%</strong><br/>
+    <strong>Net Annual Perimeter Savings: ~$650.00</strong>
+  </div>
+</nav>
+
+<article>
+
+<!-- SECTION 1 -->
+<h2 id="why-zero-nat"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg></span>1. The Zero-NAT Architecture</h2>
+
+<p class="lead">In traditional AWS reference architectures, standard compliance templates dictate a rigid pattern: compute instances must live in private subnets, and all internet-bound traffic must route through an AWS Managed NAT Gateway. While this provides an outbound-only barrier, it introduces a severe financial penalty that kills early-stage cloud economics.</p>
+
+<p>Let's look at the cold numbers of an AWS Managed NAT Gateway:</p>
+<ul>
+  <li><strong>Hourly Existence Fee:</strong> $0.045 / hour &times; 720 hours = <strong>$32.40 / month</strong> per AZ.</li>
+  <li><strong>Data Processing Fee:</strong> <strong>$0.045 / GB</strong> transferred through the gateway.</li>
+  <li><strong>Multi-AZ Redundancy:</strong> If you place one NAT Gateway in 3 Availability Zones as recommended by default AWS Well-Architected reviews, your fixed idle network bill is <strong>$97.20 / month</strong> before your application has served a single HTTP request!</li>
+</ul>
+
+<p>When our EC2 host runs <code>apt-get upgrade</code>, downloads Node.js runtime packages, or pulls 300 MB multi-stage container images from Amazon ECR during deployments, routing that traffic through a NAT Gateway incurs a double penalty: internet data egress plus NAT data processing fees.</p>
+
+<p>In the ZeetaFin Cloud Platform, we engineered a <strong>Zero-NAT Architecture</strong>. We route our host directly through an AWS Internet Gateway (which has <strong>zero hourly charge</strong> and zero data processing markup) and rely on AWS hypervisor-enforced stateful Security Groups for absolute ingress protection.</p>
+
+<!-- SECTION 2 -->
+<h2 id="decision-igw"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>2. Decision Deep-Dive: Direct IGW Routing</h2>
+
+<div class="decision-card">
+  <h4>Decision: Deploying in Public Subnet with Direct IGW Routing <span class="badge">Architecture Decision</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L28-68</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made (Importance &amp; Rationale)</b>
+      <p>Eliminates the $32.40/month baseline fee and $0.045/GB transfer fee of AWS Managed NAT Gateways. Direct connection to the Internet Gateway allows the host to pull container layers from ECR and download security updates at maximum AWS optical line speeds with zero middleware latency.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Operational Trade-off</b>
+      <p>The compute instance is assigned a publicly routable IPv4 address. If an operator misconfigures a security group rule (e.g. opening port 5432 to <code>0.0.0.0/0</code>), the database is exposed directly to the internet without a second layer of routing defense.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better (The Enterprise Alternative)</b>
+      <p>A multi-AZ private subnet topology paired with <strong>AWS VPC Endpoints (PrivateLink)</strong> for ECR, S3, and CloudWatch. PrivateLink routes all AWS API and registry traffic over internal AWS backbones, keeping the compute host completely unroutable from the public internet without requiring NAT Gateways.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail (Compensating Control)</b>
+      <p>Hypervisor-level AWS Security Groups drop all unsolicited SYN packets on non-whitelisted ports before they reach the Linux TCP stack. Database port 5432 is strictly bound to the internal Docker bridge network and has zero inbound ingress rules in the security group.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<h2 id="decision-alb"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>3. Decision Deep-Dive: Bypassing the Application Load Balancer</h2>
+
+<div class="decision-card">
+  <h4>Decision: Direct Security Group Ingress vs. AWS ALB <span class="badge">Perimeter Ingress</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L71-114</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made (Importance &amp; Rationale)</b>
+      <p>An AWS ALB costs a fixed ~$16.20/month plus LCU usage fees (~$0.008 per LCU-hour). For a single compute node in early production, an ALB adds unnecessary cost, additional proxy hops, and complexity. Binding ports 3000 and 3001 directly to host interfaces delivers raw line-rate performance.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Operational Trade-off</b>
+      <p>No native AWS-managed TLS edge termination (requires Let's Encrypt or an external reverse proxy). No native AWS WAF integration for edge Layer 7 SQL injection/XSS filtering. Inability to do weighted blue/green traffic shifting across multiple targets.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better (The Enterprise Alternative)</b>
+      <p>An Application Load Balancer terminating an AWS Certificate Manager (ACM) wildcard certificate, routing traffic based on host/path headers (<code>api.zeetafin.com</code> ➔ Backend Target Group, <code>app.zeetafin.com</code> ➔ Frontend Target Group), integrated with AWS WAF for automated bot and DDoS mitigation.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail (Compensating Control)</b>
+      <p>Application-level defense: NestJS enforces a global <code>ValidationPipe</code> with <code>whitelist: true</code> (automatically stripping unvalidated properties from payloads) and integrates Helmet HTTP security headers to protect against clickjacking, MIME sniffing, and cross-site scripting.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4 -->
+<h2 id="decision-ip"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 10"/></svg></span>4. Decision Deep-Dive: Dynamic Public IPv4 vs Elastic IP (EIP)</h2>
+
+<div class="decision-card">
+  <h4>Decision: Using <code>map_public_ip_on_launch = true</code> instead of Elastic IP <span class="badge">IP Management</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L48</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made (Importance &amp; Rationale)</b>
+      <p>As of February 1, 2024, AWS charges <strong>$0.005 per hour ($3.60/month) for every public IPv4 address</strong>, whether attached to a running instance or unattached. Auto-assigning a dynamic public IP simplifies Terraform code and avoids managing dangling Elastic IP allocations during teardown and recovery drills.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Operational Trade-off</b>
+      <p>If the EC2 instance is stopped and started (or rebuilt via disaster recovery), AWS assigns a new public IPv4 address. DNS records (Route 53) and CI/CD secret variables (<code>EC2_HOST</code>) must be updated upon replacement.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>An Elastic IP combined with an automated Amazon Route 53 A-record update via Terraform, providing an immutable public IP address for DNS records.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail</b>
+      <p>The Terraform configuration dynamically generates the Ansible inventory file (<code>hosts.ini</code>) at apply time using the live assigned public IP, ensuring automation playbooks never target stale IP addresses.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5 -->
+<h2 id="code-anatomy"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>5. Terraform Code Anatomy</h2>
+
+<p>Let's inspect the exact lines of code in <code>infra/terraform/environments/prod/main.tf</code> that implement this zero-NAT perimeter:</p>
+
+<div class="code">
+  <div class="bar">
+    <span class="dots"><i></i><i></i><i></i></span>
+    <span class="fn">infra/terraform/environments/prod/main.tf (Perimeter Rules)</span>
+    <span class="tag">HCL</span>
+    <button class="copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>
+  </div>
+  <pre><code># 1. Isolated Virtual Private Cloud
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16" # 65,536 private IP addresses
+  enable_dns_support   = true          # Enables AWS Route 53 resolver
+  enable_dns_hostnames = true          # Gives EC2 public DNS hostnames
+
+  tags = { Name = "zeetafin-prod-vpc" }
+}
+
+# 2. Free Ingress/Egress Gateway (Bypasses NAT Gateway fees)
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "zeetafin-prod-igw" }
+}
+
+# 3. Public Subnet with Direct IGW Routing
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24" # 256 IPs (251 usable by workloads)
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true          # Dynamic public IP
+
+  tags = { Name = "zeetafin-prod-public-subnet" }
+}
+
+# 4. Default Route Table pointing 0.0.0.0/0 to the IGW
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = { Name = "zeetafin-prod-public-rt" }
+}
+
+# 5. Associating Subnet to the Internet Route Table
+resource "aws_route_table_association" "public" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}</code></pre>
+</div>
+
+<!-- SECTION 6 -->
+<h2 id="failure-scenarios"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>6. SRE Failure &amp; Triage Forensics</h2>
+
+<h3>Scenario 1: The Gateway Blackhole Outage</h3>
+<p><strong>The Incident:</strong> An engineer attempts to optimize routing and creates a subnet without associating it to the route table containing the Internet Gateway route.</p>
+<div class="term">
+  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">SRE Triage Terminal</span><span class="tag warn">INCIDENT</span></div>
+  <pre><code>$ ssh -i ~/.ssh/zeetafin-key ubuntu@54.89.21.14
+ssh: connect to host 54.89.21.14 port 22: Connection timed out
+
+# Inspecting Route Tables via AWS CLI:
+$ aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-0a1b2c3d" --query "RouteTables[*].Routes"
+[
+    [
+        {
+            "DestinationCidrBlock": "10.0.0.0/16",
+            "GatewayId": "local",
+            "State": "active"
+        }
+        # MISSING: 0.0.0.0/0 -> igw-xxxxxx
+    ]
+]</code></pre>
+</div>
+<p><strong>Root Cause:</strong> The subnet was attached to the default "Main" route table which lacked the <code>0.0.0.0/0 ➔ igw-xxxx</code> rule. Traffic had no route to the outside world, creating a network blackhole.</p>
+<p><strong>Remediation:</strong> Always ensure <code>aws_route_table_association</code> explicitly ties every public subnet to the route table pointing to <code>aws_internet_gateway.main.id</code>.</p>
+
+<h3>Scenario 2: The Port 5432 Leak Audit</h3>
+<p><strong>The Incident:</strong> An auditor flags that PostgreSQL is running on an EC2 instance that has a public IP address.</p>
+<div class="term">
+  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">External Port Scan (Nmap)</span><span class="tag exp">AUDIT</span></div>
+  <pre><code>$ nmap -sS -p 22,3000,3001,5432 54.89.21.14
+Starting Nmap 7.94 ( https://nmap.org )
+PORT     STATE    SERVICE
+22/tcp   open     ssh
+3000/tcp open     ppp
+3001/tcp open     nessus
+5432/tcp filtered postgresql  <--- PROOF: Filtered by AWS Hypervisor!
+
+Nmap done: 1 IP address (1 host up) scanned in 2.14 seconds</code></pre>
+</div>
+<p><strong>Forensic Finding:</strong> Port 5432 is reported as <code>filtered</code> (dropped packets), proving that the AWS Security Group completely shields the database from external internet probing.</p>
+
+<!-- SECTION 7 -->
+<h2 id="muscle-memory"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 12.6a2 2 0 0 1 0 2.8l-5.6 5.6a2 2 0 0 1-2.8 0L3 11.4a2 2 0 0 1 0-2.8L8.6 3a2 2 0 0 1 2.8 0z"/></svg></span>7. Hands-on Verification Lab</h2>
+
+<ol class="steps">
+  <li>
+    <b>Verify AWS Security Group Ingress Rules</b>
+    <p>Run the AWS CLI to confirm that only ports 22, 3000, and 3001 are open:</p>
+    <div class="term">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">Bash</span><span class="tag">CLI</span></div>
+      <pre><code>aws ec2 describe-security-groups \
+  --group-ids $(terraform -chdir=infra/terraform/environments/prod output -raw security_group_id) \
+  --query "SecurityGroups[0].IpPermissions[*].[FromPort, ToPort, IpProtocol, IpRanges[0].CidrIp]" \
+  --output table</code></pre>
+    </div>
+  </li>
+  <li>
+    <b>Verify Zero-NAT Outbound Connectivity &amp; Latency</b>
+    <p>SSH into the EC2 instance and measure network round-trip time directly through the IGW:</p>
+    <div class="term">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">EC2 Host</span><span class="tag">SHELL</span></div>
+      <pre><code># Check public IP resolution
+curl -s https://checkip.amazonaws.com
+
+# Verify line-rate package updates without NAT transfer fees
+curl -s -o /dev/null -w "Connect: %{time_connect}s | TTFB: %{time_starttransfer}s | Total: %{time_total}s\n" https://archive.ubuntu.com</code></pre>
+    </div>
+  </li>
+</ol>
+
+<div class="pager">
+  <span></span>
+  <a class="r" href="part-2-compute-hardening-imdsv2-and-gp3-storage.html">
+    <small>Next Chapter ➔</small>
+    Part 2: Compute Hardening, IMDSv2 &amp; gp3 Persistence
+  </a>
+</div>
+
+</article>
+</div></div>
+
+<footer>
+  <div class="wrap">
+    ZeetaFin Cloud Platform • Architectural Decision Lab Series • Abdulmuiz (Devzane) • <a href="https://github.com/Devzane">GitHub</a>
+  </div>
+</footer>
+
+<script>
+// Scroll Progress
+const bar = document.querySelector('.progress i');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  bar.style.width = ((h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100) + '%';
+});
+
+// TOC Highlighting
+const links = [...document.querySelectorAll('nav.toc a')];
+const obs = new IntersectionObserver(es => {
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('on'));
+      const a = links.find(l => l.getAttribute('href') === '#' + e.target.id);
+      if (a) a.classList.add('on');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+document.querySelectorAll('article h2[id]').forEach(h => obs.observe(h));
+</script>
+</body>
+</html>
