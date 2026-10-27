@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architectural Deep-Dive & SRE Decisions Lab — ZeetaFin Platform</title>
+<meta name="description" content="Master Architectural Decision Guide for the ZeetaFin Cloud Platform: in-depth technical rationale, operational limitations, enterprise alternatives, cost optimization economics, and zero-compromise reliability engineering.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9; --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --line:#e2e8f0;
+  --c1:#6366f1; --c2:#0ea5e9; --c3:#f59e0b; --c4:#10b981; --c5:#8b5cf6; --c6:#ec4899;
+  --accent:#4f46e5; --accent-ink:#4338ca; --accent-soft:#eef2ff;
+  --mint:#10b981; --mint-soft:#ecfdf5; --amber:#f59e0b; --amber-soft:#fffbeb; --rose:#ef4444; --rose-soft:#fef2f2;
+  --night:#0a0f1d; --night-2:#11192e; --night-line:#1e293b; --night-ink:#f8fafc; --night-muted:#94a3b8;
+  --sans:"DM Sans","Helvetica Neue",Arial,sans-serif; --head:"Sora","DM Sans",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 3px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#070b14; --surface:#0e1526; --surface-2:#141f38; --ink:#f8fafc; --ink-2:#cbd5e1; --muted:#8899b5; --line:#1d2945;
+    --accent:#818cf8; --accent-ink:#a5b4fc; --accent-soft:#182042;
+    --mint:#34d3b4; --mint-soft:#062d25; --amber:#fbbf24; --amber-soft:#332205; --rose:#f87171; --rose-soft:#341318;
+    --shadow:0 1px 3px rgba(0,0,0,.5),0 14px 40px rgba(0,0,0,.45);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(900px 500px at 100% 0,color-mix(in srgb,var(--c1) 8%,transparent),transparent 70%),radial-gradient(800px 500px at 0 30%,color-mix(in srgb,var(--c2) 7%,transparent),transparent 70%),var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:18px;line-height:1.72;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--accent-ink);text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+.progress{position:fixed;inset:0 0 auto 0;height:5px;z-index:50;background:transparent}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--c1),var(--c2),var(--c4),var(--c3),var(--c6))}
+
+/* Hero */
+.hero{background:var(--night);color:var(--night-ink);position:relative;overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(750px 380px at 90% -10%,rgba(99,102,241,.65),transparent 62%),radial-gradient(650px 380px at 10% 110%,rgba(14,165,233,.45),transparent 62%),radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.2px) 0 0/26px 26px}
+.hero .wrap{padding-top:44px;padding-bottom:44px}
+.sbar{display:flex;gap:8px;margin:0 0 30px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.sbar::-webkit-scrollbar{display:none}
+@media (min-width:900px){.sbar{flex-wrap:wrap;overflow:visible}}
+.sbar .p{display:inline-flex;align-items:center;gap:9px;flex:none;padding:6px 14px 6px 6px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:#cbd5e1;text-decoration:none;font:600 13px var(--head);transition:all .18s}
+.sbar .p i{width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font-style:normal;font-size:12px}
+.sbar .p:hover{background:rgba(255,255,255,.14);color:#fff}
+.sbar .p.on{background:#fff;color:#0a0f1d;border-color:#fff}
+
+h1{font-family:var(--head);font-weight:800;font-size:clamp(34px,5vw,60px);line-height:1.08;letter-spacing:-.035em;margin:0;max-width:20ch;color:#fff}
+.dek{font-size:clamp(17px,1.9vw,21px);line-height:1.55;color:#cbd5e1;max-width:60ch;margin:20px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin:24px 0 0;font-family:var(--head);font-size:13.5px;color:var(--night-muted)}
+.meta span{display:inline-flex;gap:8px;align-items:center}
+.tools{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0}
+.tool{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 13.5px var(--head)}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:56px;align-items:start;padding-top:56px}
+@media (max-width:960px){.layout{grid-template-columns:1fr;gap:32px}}
+nav.toc{position:sticky;top:24px;font-family:var(--head);font-size:13.5px;max-height:calc(100vh - 48px);overflow:auto}
+nav.toc h2{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 12px;letter-spacing:.04em;text-transform:uppercase}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:1.5px solid var(--line)}
+nav.toc a{display:block;padding:6px 0 6px 16px;margin-left:-1.5px;border-left:1.5px solid transparent;color:var(--muted);text-decoration:none;line-height:1.35;transition:color .15s}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.on{color:var(--accent);border-left-color:var(--accent);font-weight:700}
+nav.toc li.sub a{padding-left:30px;font-size:12.5px}
+.sidecard{margin-top:26px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--muted);box-shadow:var(--shadow)}
+.sidecard b{display:block;color:var(--ink);font-family:var(--head);font-size:13.5px;margin-bottom:4px}
+
+article{min-width:0;max-width:840px}
+article h2{font-family:var(--head);font-weight:700;font-size:clamp(26px,3.2vw,36px);line-height:1.2;letter-spacing:-.025em;margin:80px 0 16px;color:var(--ink);scroll-margin-top:20px;display:flex;gap:14px;align-items:center;padding-bottom:14px;border-bottom:2px solid var(--line)}
+article h2 .hi{width:46px;height:46px;border-radius:14px;background:var(--hc,var(--c1));color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 8px 20px color-mix(in srgb,var(--hc,var(--c1)) 35%,transparent)}
+article h2 .hi svg{width:24px;height:24px;stroke-width:2}
+article h2:first-child{margin-top:0}
+article h2:nth-of-type(6n+1){--hc:var(--c1)}article h2:nth-of-type(6n+2){--hc:var(--c2)}article h2:nth-of-type(6n+3){--hc:var(--c4)}article h2:nth-of-type(6n+4){--hc:var(--c3)}article h2:nth-of-type(6n+5){--hc:var(--c5)}article h2:nth-of-type(6n+6){--hc:var(--c6)}
+
+article h3{font-family:var(--head);font-weight:700;font-size:20px;line-height:1.3;margin:44px 0 10px;color:var(--ink);scroll-margin-top:20px;letter-spacing:-.01em;background:linear-gradient(90deg,color-mix(in srgb,var(--c1) 12%,transparent),transparent 85%);border-left:6px solid var(--c1);padding:12px 18px;border-radius:0 14px 14px 0}
+article h4{font-family:var(--head);font-weight:700;font-size:17px;margin:28px 0 8px;color:var(--ink)}
+article p{margin:0 0 1.15em}
+article ul,article ol{padding-left:1.3em;margin:0 0 1.25em}
+article li{margin:.4em 0}
+article strong,article b{color:var(--ink);font-weight:700}
+code{font-family:var(--mono);font-size:.84em;background:color-mix(in srgb,var(--c1) 12%,transparent);color:var(--accent-ink);padding:.12em .45em;border-radius:6px;font-weight:500}
+.lead{font-size:1.15em;color:var(--ink);line-height:1.68}
+
+/* Code & Term */
+.code,.term{margin:24px 0 28px;border-radius:16px;overflow:hidden;background:var(--night);border:1px solid #223055;box-shadow:0 14px 40px rgba(10,15,29,.25)}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(180deg,#152042,#0d152d);border-bottom:1px solid #1f2c4e;font-family:var(--mono);font-size:12.5px;color:#8f9cb8}
+.bar .dots{display:flex;gap:6px}.bar .dots i{width:10px;height:10px;border-radius:50%;display:block}
+.bar .dots i:nth-child(1){background:#ff5f57}.bar .dots i:nth-child(2){background:#febc2e}.bar .dots i:nth-child(3){background:#28c840}
+.bar .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.bar .tag{font-family:var(--head);font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#1a2750;color:#a5b4fc}
+.copy{all:unset;cursor:pointer;display:inline-flex;gap:6px;align-items:center;font-family:var(--head);font-size:12px;color:#a5b4fc;padding:4px 9px;border-radius:7px;border:1px solid #273766;transition:all .15s}
+.copy:hover{background:#1a2750;color:#fff}.copy.copied{color:#34d3b4;border-color:#34d3b4;background:rgba(52,211,180,.1)}
+pre{margin:0;font-family:var(--mono);font-size:14px;line-height:1.68;color:#dce5f8;padding:16px 18px;overflow-x:auto;tab-size:2}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+
+/* Callouts */
+.callout{display:flex;gap:14px;padding:18px 20px;border-radius:16px;margin:28px 0;border-left-width:6px;border-left-style:solid;box-shadow:var(--shadow);font-size:16px;line-height:1.62;color:var(--ink-2)}
+.callout>svg{width:30px;height:30px;padding:5px;border-radius:50%;color:#fff;margin-top:2px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.callout b.t{display:block;font-family:var(--head);color:var(--ink);margin-bottom:3px;font-weight:700}
+.callout p{margin:0 0 .5em}.callout p:last-child{margin:0}
+.callout.info{background:var(--accent-soft);border-left-color:var(--accent)}.callout.info>svg{background:var(--accent)}
+.callout.warn{background:var(--amber-soft);border-left-color:var(--amber)}.callout.warn>svg{background:var(--amber)}
+.callout.ok{background:var(--mint-soft);border-left-color:var(--mint)}.callout.ok>svg{background:var(--mint)}
+.callout.bad{background:var(--rose-soft);border-left-color:var(--rose)}.callout.bad>svg{background:var(--rose)}
+
+/* Tables */
+.tbl{overflow-x:auto;margin:24px 0 28px;border:1px solid color-mix(in srgb,var(--c1) 22%,var(--line));border-radius:16px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;font-size:15px;font-family:var(--sans)}
+th,td{text-align:left;padding:12px 18px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--head);font-weight:700;font-size:13.5px;color:var(--accent-ink);background:color-mix(in srgb,var(--c1) 14%,var(--surface));border-bottom:2px solid color-mix(in srgb,var(--c1) 32%,var(--line))}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 65%,var(--surface))}
+td:first-child{color:var(--ink);font-weight:600;border-right:1px solid var(--line)}
+
+/* Decision Card */
+.decision-card{border:1px solid var(--line);border-radius:18px;background:var(--surface);padding:24px;margin:28px 0;box-shadow:var(--shadow);border-top:4px solid var(--accent)}
+.decision-card h4{margin-top:0;font-size:19px;color:var(--ink);display:flex;align-items:center;justify-content:space-between}
+.decision-card .badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:16px}
+@media (max-width:720px){.grid-2{grid-template-columns:1fr}}
+.box{background:var(--surface-2);border-radius:12px;padding:14px;border:1px solid var(--line)}
+.box b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px}
+
+footer{margin-top:100px;border-top:1px solid var(--line);padding:40px 0;text-align:center;font-size:14px;color:var(--muted);background:var(--surface)}
+</style>
+</head>
+<body>
+<div class="progress"><i></i></div>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="sbar">
+      <a class="p" href="../../zeetafin-phase1-labs/part-1-aws-vpc-infrastructure-terraform.html" style="--c:var(--c1)"><i>1</i>Phase 1: AWS &amp; Terraform</a>
+      <a class="p" href="../../zeetafin-phase2-labs/part-1-dockerfile-multi-stage.html" style="--c:var(--c2)"><i>2</i>Phase 2: Docker &amp; ECR</a>
+      <a class="p" href="../../zeetafin-phase3-labs/part-1-aws-iam-ecr-github-secrets.html" style="--c:var(--c4)"><i>3</i>Phase 3: CI/CD &amp; EC2 Deploy</a>
+      <a class="p on" href="#" style="--c:var(--c3)"><i>★</i>Master Decisions Lab</a>
+    </div>
+
+    <h1>Architectural Decisions, Cost Economics &amp; Production Reliability</h1>
+    <p class="dek">The definitive engineering masterclass explaining every architectural fork in the ZeetaFin Cloud Platform: the business importance, the inherent trade-offs, the unconstrained enterprise alternatives, and how we cut AWS cloud bills by 91% without compromising financial-grade reliability.</p>
+    
+    <div class="meta">
+      <span><strong>Author:</strong> Abdulmuiz (Devzane)</span>
+      <span><strong>Project:</strong> ZeetaFin Cloud Platform</span>
+      <span><strong>System:</strong> AWS • Terraform • Ansible • Docker • NestJS • Next.js</span>
+      <span><strong>Level:</strong> Staff DevOps / SRE Architect</span>
+    </div>
+
+    <div class="tools">
+      <div class="tool">AWS VPC &amp; EC2</div>
+      <div class="tool">IMDSv2 Anti-SSRF</div>
+      <div class="tool">Ansible Idempotency</div>
+      <div class="tool">Multi-Stage Alpine</div>
+      <div class="tool">Docker Compose v2</div>
+      <div class="tool">GitHub Actions GitOps</div>
+      <div class="tool">Dual-Vantage Healthchecks</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap"><div class="layout">
+
+<nav class="toc">
+  <h2>Decisions Navigation</h2>
+  <ol>
+    <li><a href="#paradox">1. The Frugal Enterprise Paradox</a></li>
+    <li><a href="#perimeter">2. Cloud Perimeter &amp; Network</a></li>
+    <li><a href="#compute">3. Compute, IMDSv2 &amp; EBS</a></li>
+    <li><a href="#ansible">4. Configuration Management</a></li>
+    <li><a href="#application">5. Application &amp; Containers</a></li>
+    <li><a href="#orchestration">6. Compose &amp; Persistence</a></li>
+    <li><a href="#cicd">7. CI/CD &amp; Image Pipeline</a></li>
+    <li><a href="#deployment">8. Deployment &amp; Rollback</a></li>
+    <li><a href="#dr">9. Disaster Recovery &amp; S3</a></li>
+    <li><a href="#scenarios">10. Real-World SRE Scenarios</a></li>
+    <li><a href="#checklist">11. Architectural Checklist</a></li>
+  </ol>
+  
+  <div class="sidecard">
+    <b>Financial Summary</b>
+    Standard AWS Enterprise Baseline: <strong>~$350/mo</strong><br/>
+    ZeetaFin Production Cost: <strong>~$25/mo</strong><br/>
+    <strong>Net Annual Savings: ~$3,900.00</strong>
+  </div>
+</nav>
+
+<article>
+
+<!-- SECTION 1 -->
+<h2 id="paradox"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg></span>1. The Frugal Enterprise Paradox</h2>
+
+<p class="lead">Junior cloud engineers design systems by assembling managed AWS services like building blocks: an Application Load Balancer, a Managed NAT Gateway in each AZ, an Amazon RDS Multi-AZ PostgreSQL cluster, an Amazon EKS Kubernetes control plane, and AWS Secrets Manager. Before a single customer signs up, the AWS invoice is <strong>$350 to $500 per month</strong>.</p>
+
+<p>Senior SREs design with <strong>frugal precision</strong>: understanding the physics of the operating system, the Linux network stack, and storage virtualization to deliver 99.9% availability, zero-downtime updates, and sub-15-minute disaster recovery on an infrastructure footprint costing <strong>less than $25 per month</strong>.</p>
+
+<div class="tbl">
+  <table>
+    <thead>
+      <tr>
+        <th>Infrastructure Component</th>
+        <th>Default Enterprise Setup</th>
+        <th>Default Monthly Burn</th>
+        <th>ZeetaFin Frugal Setup</th>
+        <th>ZeetaFin Monthly Burn</th>
+        <th>Monthly Savings</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Ingress &amp; Perimeter</strong></td>
+        <td>AWS Application Load Balancer + AWS WAF</td>
+        <td>~$42.00</td>
+        <td>Direct Security Group Rules + Docker Port Bindings</td>
+        <td>$0.00</td>
+        <td><strong>~$42.00</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Network Egress</strong></td>
+        <td>Managed NAT Gateway ($0.045/hr + $0.045/GB)</td>
+        <td>~$38.00</td>
+        <td>Public Subnet + Direct Internet Gateway (IGW)</td>
+        <td>$0.00</td>
+        <td><strong>~$38.00</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Relational Database</strong></td>
+        <td>AWS RDS PostgreSQL Multi-AZ (<code>db.t3.medium</code>)</td>
+        <td>~$118.00</td>
+        <td>Self-Hosted Postgres 16 Alpine on Encrypted EBS</td>
+        <td>~$1.60 <em>(Storage)</em></td>
+        <td><strong>~$116.40</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Compute Cluster</strong></td>
+        <td>AWS EKS Control Plane ($73) + 2x EC2 Nodes</td>
+        <td>~$140.00</td>
+        <td>Single Ubuntu 24.04 LTS EC2 (<code>t3.medium</code>)</td>
+        <td>~$22.00</td>
+        <td><strong>~$118.00</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Secrets Management</strong></td>
+        <td>AWS Secrets Manager ($0.40/secret + API calls)</td>
+        <td>~$8.00</td>
+        <td>Encrypted GitHub Secrets + Staged Host <code>.env</code></td>
+        <td>$0.00</td>
+        <td><strong>~$8.00</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Total Monthly Spend</strong></td>
+        <td><strong>Default Enterprise Blueprint</strong></td>
+        <td><strong>~$346.00/mo</strong></td>
+        <td><strong>ZeetaFin Cloud Platform</strong></td>
+        <td><strong>~$23.60/mo</strong></td>
+        <td><strong>~$322.40/mo (93% Cut)</strong></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="callout ok">
+  <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+  <div>
+    <b class="t">The Core Engineering Thesis</b>
+    <p>Cost reduction is dangerous only when it introduces unquantified single points of failure. In ZeetaFin, every cost optimization decision is paired with an explicit, automated compensating reliability control (e.g., EBS persistence, automated healthcheck polling, IMDSv2 anti-SSRF enforcement, and 30-second SHA rollbacks).</p>
+  </div>
+</div>
+
+<!-- SECTION 2 -->
+<h2 id="perimeter"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>2. Cloud Perimeter &amp; Network Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 2.1: Single Public Subnet with Direct IGW (Bypassing AWS NAT Gateway) <span class="badge">Networking</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L28-68</code></p>
+  <p>We deploy our compute host into a single public subnet (<code>10.0.1.0/24</code>) routed directly to an AWS Internet Gateway, assigning a public IP automatically (<code>map_public_ip_on_launch = true</code>) rather than provisioning a multi-subnet private topology with an AWS Managed NAT Gateway.</p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p>An AWS NAT Gateway charges a baseline of $0.045 per hour ($32.40/month) simply to exist, plus $0.045 per GB transferred. When our EC2 host downloads Docker layers from ECR or runs Ubuntu package upgrades, NAT data fees quickly mount. A direct IGW route eliminates 100% of these idle and transfer surcharges.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>The EC2 compute instance has a public IP directly routable over the internet. There is no physical network DMZ separating the web application runtime from external port scanning. If a security group rule is accidentally opened to <code>0.0.0.0/0</code>, the instance is immediately exposed.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better (The Enterprise Alternative)</b>
+      <p>A multi-AZ VPC across 3 Availability Zones with private subnets for compute, connected to <strong>AWS VPC Endpoints (PrivateLink)</strong> for ECR, S3, and CloudWatch. This eliminates NAT Gateways while keeping container traffic 100% inside AWS's private optical network.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail (Compensating Control)</b>
+      <p>An AWS Security Group enforced at the hypervisor layer drops all incoming packets on non-whitelisted ports. PostgreSQL port 5432 is strictly blocked from external IP ranges, ensuring only internal Docker containers can communicate with the database.</p>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <h4>Decision 2.2: Direct Security Group Ingress vs. AWS Application Load Balancer <span class="badge">Perimeter</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L71-114</code></p>
+  <p>Clients connect directly to the EC2 host on TCP port 3000 (Next.js) and TCP port 3001 (NestJS REST API), with packet filtering handled directly by the AWS EC2 Security Group.</p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p>An AWS Application Load Balancer costs ~$16.20/month plus Load Balancer Capacity Units (LCU) charges. Direct port exposure avoids ~$25.00–$40.00/month in idle load balancing overhead while delivering maximum throughput with zero proxy hops.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>No managed TLS edge termination (requires Let's Encrypt or an external reverse proxy). No native AWS WAF integration for edge Layer 7 SQLi/XSS filtering. Inability to do weighted canary traffic shifting across multiple backend targets.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better (The Enterprise Alternative)</b>
+      <p>An Application Load Balancer terminating an AWS Certificate Manager (ACM) wildcard certificate, routing traffic based on host headers (<code>api.zeetafin.com</code> to backend, <code>app.zeetafin.com</code> to frontend), protected by AWS WAF rate-limiting rules.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail (Compensating Control)</b>
+      <p>The NestJS application implements a global <code>ValidationPipe</code> with <code>whitelist: true</code> (stripping unvalidated request payload parameters) and Helmet HTTP security headers, protecting application memory from buffer overflows and malicious script injection.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<h2 id="compute"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></span>3. Compute, IMDSv2 &amp; EBS Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 3.1: Enforcing AWS IMDSv2 with hop-limit = 1 <span class="badge">Security Hardening</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L166-170</code></p>
+  
+  <div class="code">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">main.tf (IMDSv2 Enforcement)</span><span class="tag">HCL</span></div>
+    <pre><code>metadata_options {
+  http_endpoint               = "enabled"
+  http_tokens                 = "required"     # Rejects insecure IMDSv1 calls (HTTP 401)
+  http_put_response_hop_limit = 1              # Limits packet TTL to exactly 1 network hop
+}</code></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Anti-SSRF Armor:</strong> In legacy IMDSv1, an attacker who discovered an SSRF vulnerability (e.g., an invoice generator scraping a URL) could issue <code>GET http://169.254.169.254/latest/meta-data/iam/security-credentials/</code> to steal the instance's AWS temporary credentials. IMDSv2 mandates a signed <code>PUT</code> session token. Setting <code>http_put_response_hop_limit = 1</code> ensures that packets originating from inside Docker containers (which are 2 hops away across the bridge interface) expire before reaching the metadata endpoint.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Legacy monitoring agents, older third-party SDKs, or outdated CLI scripts that do not implement tokenized IMDSv2 authentication will fail to resolve IAM credentials.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better (The Enterprise Alternative)</b>
+      <p>Container-scoped IAM identities using <strong>IAM Roles for Service Accounts (IRSA)</strong> or <strong>ECS Task IAM Roles</strong>, completely isolating credentials per container so the host never requires an instance profile.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost &amp; Reliability Impact</b>
+      <p><strong>$0.00 cost.</strong> Yields enterprise bank-grade defense against total AWS cloud infrastructure takeover from containerized application vulnerabilities.</p>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <h4>Decision 3.2: 20 GB Encrypted gp3 Root EBS Storage <span class="badge">Persistence</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/terraform/environments/prod/main.tf:L172-177</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p>Unlike older <code>gp2</code> volumes (where IOPS were tied strictly to volume size at 3 IOPS/GB, giving a 20 GB volume an unusable 60 IOPS), <code>gp3</code> provides <strong>3,000 baseline IOPS and 125 MB/s throughput unconditionally</strong>, even on a minimal 20 GB drive. PostgreSQL write-ahead logs (WAL) and ACID journal commits never stall on disk I/O queues.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>3,000 IOPS and 125 MB/s throughput has an upper bound. High-frequency enterprise transactional workloads exceeding 5,000 queries per second would require provisioned IOPS.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Amazon Aurora Serverless v2 PostgreSQL with distributed storage automatically replicated 6 times across 3 Availability Zones with continuous backup to Amazon S3.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost Economics</b>
+      <p><code>gp3</code> is 20% cheaper than <code>gp2</code> ($0.08/GB vs $0.10/GB). 20 GB costs just <strong>$1.60/month</strong>, saving hundreds compared to managed RDS database instances.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4 -->
+<h2 id="ansible"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 12.6a2 2 0 0 1 0 2.8l-5.6 5.6a2 2 0 0 1-2.8 0L3 11.4a2 2 0 0 1 0-2.8L8.6 3a2 2 0 0 1 2.8 0z"/></svg></span>4. Configuration Management Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 4.1: Ansible with Dynamic Templated Inventory vs. Cloud-Init <span class="badge">Configuration</span></h4>
+  <p><strong>Code Location:</strong> <code>infra/ansible/site.yml</code> and <code>infra/ansible/roles/docker_host/</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Zero Configuration Drift:</strong> Raw bash scripts inside EC2 <code>user_data</code> execute once on first launch and fail silently without structured logging. Ansible is <strong>declarative and idempotent</strong>. Running <code>ansible-playbook site.yml</code> a second time produces <code>changed=0</code>, proving the production environment has not drifted.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Bootstrapping an instance requires waiting for SSH availability and running apt package installations, taking 2–4 minutes during initial host setup.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p><strong>HashiCorp Packer Golden AMIs:</strong> Pre-compiling Docker and security hardening into a private AMI during the CI phase. Instances launched from a Golden AMI boot in 15 seconds without running package upgrades.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail</b>
+      <p>Ansible pre-tasks explicitly poll the system until <code>/var/lib/dpkg/lock-frontend</code> is released, preventing aborted package installs caused by Ubuntu background unattended updates.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5 -->
+<h2 id="application"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 12h10M12 7v10"/></svg></span>5. Application &amp; Containerization Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 5.1: Domain-Driven Modular Monolith (NestJS 10) vs. Microservices <span class="badge">Architecture</span></h4>
+  <p><strong>Code Location:</strong> <code>apps/backend/src/</code> (GL, AP, AR, Cash, Budgeting, Assets)</p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Double-Entry Ledger Integrity:</strong> Financial accounting requires strict parity: every debit must be balanced by an equal credit (&sum; Debits &equiv; &sum; Credits). In a distributed microservice setup, recording a journal entry across AP, GL, and Cash requires distributed sagas, 2-phase commits, and message brokers (Kafka/RabbitMQ). A modular monolith executes these operations inside a single database transaction (<code>EntityManager.transaction</code>), guaranteeing ACID consistency with zero network latency.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>The entire backend must be compiled and deployed together. A memory leak or heavy reporting query in the Fixed Assets module could theoretically impact API responsiveness for General Ledger endpoints.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>CQRS (Command Query Responsibility Segregation) with read/write database segregation and event-driven projections using Apache Kafka or AWS EventBridge.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost Optimization Angle</b>
+      <p>Eliminates the cost of running multiple container services, service meshes, and managed Kafka clusters (<strong>saving $150–$300/month</strong>).</p>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <h4>Decision 5.2: Multi-Stage Alpine Builds &amp; Non-Root Execution <span class="badge">Container Security</span></h4>
+  <p><strong>Code Location:</strong> <code>apps/backend/Dockerfile</code> &amp; <code>apps/frontend/Dockerfile</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Attack Surface Minimization:</strong> Compilers, npm devDependencies, and build tools are purged in stage 2. Production images contain only compiled JavaScript and runtime dependencies. NestJS API dropped from 1.2 GB to <strong>158 MB</strong>; Next.js frontend dropped from 1.4 GB to <strong>139 MB</strong> using <code>output: 'standalone'</code>. Containers run as unprivileged users (<code>node</code> UID 1000 and <code>nextjs</code> UID 1001).</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Alpine uses <code>musl</code> libc instead of standard <code>glibc</code>. Native C++ Node modules occasionally require compatibility libraries (<code>libc6-compat</code>).</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Google Container Tools <strong>Distroless</strong> images, which contain no shell (<code>/bin/sh</code>) whatsoever, making interactive command execution impossible even if an attacker gains code execution.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail</b>
+      <p>Non-root user execution guarantees that even if a container process is compromised, the attacker cannot modify system libraries or break out into the host kernel.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 6 -->
+<h2 id="orchestration"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>6. Compose &amp; Persistence Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 6.1: Healthcheck-Driven Dependency Graph (<code>condition: service_healthy</code>) <span class="badge">Orchestration</span></h4>
+  <p><strong>Code Location:</strong> <code>deploy/docker-compose.prod.yml:L40-48</code></p>
+  
+  <div class="code">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">docker-compose.prod.yml</span><span class="tag">YAML</span></div>
+    <pre><code>backend:
+  depends_on:
+    db:
+      condition: service_healthy   # Waits for pg_isready before launching NestJS
+frontend:
+  depends_on:
+    backend:
+      condition: service_healthy   # Waits for HTTP 200 /api/docs before launching Next.js</code></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Eliminating Race Conditions:</strong> In naive Docker Compose setups, <code>depends_on</code> only checks if a container has *started*, not that it is ready to receive requests. NestJS would start before PostgreSQL finished initializing its socket, causing immediate TypeORM connection crashes. Enforcing <code>condition: service_healthy</code> guarantees sequential, verified startup.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Adds 15–25 seconds of healthcheck polling delay to total stack initialization time.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Kubernetes Readiness &amp; Liveness Probes with automated service mesh circuit-breaking (Istio/Envoy).</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail</b>
+      <p>Completely prevents crash-loop restart storms upon host reboots or service updates.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 7 -->
+<h2 id="cicd"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>7. CI/CD &amp; Image Pipeline Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 7.1: Docker Buildx with GitHub Actions Native Cache (<code>type=gha</code>) <span class="badge">CI/CD</span></h4>
+  <p><strong>Code Location:</strong> <code>.github/workflows/cd-deploy.yml:L75-77</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Lightning Feedback Loops:</strong> Compiling TypeScript and bundling Next.js applications from scratch on ephemeral GitHub Actions runners takes 6–8 minutes per push. Buildx with <code>cache-from: type=gha</code> caches intermediate Docker image layers directly inside GitHub's cache backend, cutting build times down to <strong>35–45 seconds</strong>.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>GitHub Actions enforces a 10 GB cache storage limit per repository. Excessive image caching can evict older branch caches.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Dedicated self-hosted ephemeral build runners on AWS EC2 Spot instances equipped with NVMe SSD storage and local Docker daemon layer caches.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost Economics</b>
+      <p>Conserves GitHub Actions runner minutes, easily remaining within the free-tier allocation of 2,000 minutes/month.</p>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <h4>Decision 7.2: Immutable Git SHA Tagging (<code>${{ github.sha }}</code>) <span class="badge">Registry Hygiene</span></h4>
+  <p><strong>Code Location:</strong> <code>.github/workflows/cd-deploy.yml:L72-74</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Auditability &amp; Determinism:</strong> Using mutable tags like <code>:latest</code> creates ambiguity in production: if a bug occurs, you cannot easily identify which commit introduced it. Pushing an immutable Git SHA tag (e.g., <code>sha-9f2b84c</code>) links every running container directly to its exact source code commit.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Rapid deployment pipelines accumulate hundreds of tagged images in Amazon ECR over time.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Automated cryptographic image signing with <strong>Cosign/Sigstore</strong> and vulnerability admission controllers verifying image signatures at runtime.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost &amp; Reliability Guardrail</b>
+      <p>Terraform provisions an automated ECR Lifecycle Policy that purges untagged layers and retains only the last 30 releases, capping ECR storage costs to <strong>under $1.00/month</strong>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 8 -->
+<h2 id="deployment"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 10"/></svg></span>8. Deployment &amp; Rollback Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 8.1: In-Place Atomic Container Swapping <span class="badge">Zero-Downtime</span></h4>
+  <p><strong>Code Location:</strong> <code>deploy/scripts/deploy.sh:L94-100</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Zero Port Collisions:</strong> Pre-pulling images via <code>docker compose pull</code> ensures that download delays do not occur while containers are offline. Executing <code>docker compose up -d --remove-orphans --force-recreate</code> recreates the containers in milliseconds, binding ports cleanly without port conflict errors.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>A brief sub-second TCP reset window can occur as the host network stack hands off the listening socket to the new container process.</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Blue/Green deployment using reverse proxies (Nginx/Traefik) where the new version is fully warmed before traffic is shifted.</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost &amp; Reliability Guardrail</b>
+      <p>Delivers smooth container updates on a single node without requiring double compute capacity (saving 50% compute costs vs. permanent Blue/Green clusters).</p>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <h4>Decision 8.2: Instant Git SHA Rollback Engine (<code>rollback.sh</code>) <span class="badge">SRE Operations</span></h4>
+  <p><strong>Code Location:</strong> <code>deploy/scripts/rollback.sh</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>Emergency MTTR Minimization:</strong> During a live production outage, SREs should never manually edit YAML files or debug git branches. Running <code>./scripts/rollback.sh sha-9f2b84c</code> updates the environment tag, pulls the verified historical release, restarts containers, and validates health in <strong>under 30 seconds</strong>.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>Code rollbacks cannot automatically reverse destructive database schema migrations (e.g., dropped columns).</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Automated database backward-compatible expand/contract migrations managed by automated Canary rollback controllers (e.g., Argo Rollouts).</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Reliability Guardrail</b>
+      <p>The rollback script validates the existence of the target image in ECR before touching the active production container.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 9 -->
+<h2 id="dr"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>9. Disaster Recovery &amp; S3 Decisions</h2>
+
+<div class="decision-card">
+  <h4>Decision 9.1: Disaster Recovery Protocol: Declarative IaC + S3 Tarball Restores <span class="badge">Business Continuity</span></h4>
+  <p><strong>Code Location:</strong> <code>docs/runbooks/disaster-recovery.md</code></p>
+  
+  <div class="grid-2">
+    <div class="box">
+      <b>Why This Decision Was Made</b>
+      <p><strong>RTO &lt; 15 min, RPO &lt; 1 hr:</strong> If the physical EC2 host is destroyed, Terraform recreates the VPC and instance in 3 minutes, Ansible configures Docker in 2 minutes, the PostgreSQL snapshot is extracted from encrypted S3 in 4 minutes, and containers start in 2 minutes. Total recovery is achieved in under 15 minutes.</p>
+    </div>
+    <div class="box">
+      <b>Inherent Limitation &amp; Trade-off</b>
+      <p>RPO is tied to snapshot cadence (hourly backups = up to 1 hour of transaction loss).</p>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px">
+    <div class="box" style="background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)">
+      <b style="color:var(--accent)">What Would Have Been Better</b>
+      <p>Continuous Write-Ahead Log (WAL) streaming to S3 using <code>pgBackRest</code> or <code>WAL-G</code> for sub-minute Point-in-Time Recovery (PITR).</p>
+    </div>
+    <div class="box" style="background:var(--mint-soft);border-color:color-mix(in srgb,var(--mint) 30%,transparent)">
+      <b style="color:var(--mint)">Cost Economics</b>
+      <p>S3 standard storage for compressed database backups costs <strong>~$0.05/month</strong>, avoiding high RDS cross-region replication fees.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 10 -->
+<h2 id="scenarios"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>10. Real-World SRE Disaster Scenarios</h2>
+
+<h3>Scenario A: The Malicious SSRF Attack Attempt</h3>
+<p>An attacker discovers an SSRF flaw in an invoice export feature and attempts to read AWS IAM credentials from the metadata IP address.</p>
+<div class="term">
+  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">Attacker Exploit Attempt Inside Container</span><span class="tag warn">SIMULATION</span></div>
+  <pre><code>$ curl -i http://169.254.169.254/latest/meta-data/iam/security-credentials/
+HTTP/1.1 401 Unauthorized
+Content-Type: text/plain
+
+# The attacker attempts an IMDSv2 token request:
+$ curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60"
+curl: (28) Connection timed out after 3000 milliseconds</code></pre>
+</div>
+<p><strong>Forensic Analysis:</strong> The legacy IMDSv1 call was rejected with HTTP 401 because <code>http_tokens = "required"</code> was enforced in Terraform. The IMDSv2 token request failed because <code>http_put_response_hop_limit = 1</code> dropped the packet at the Docker bridge boundary. <strong>Result: Account credentials remained safe.</strong></p>
+
+<h3>Scenario B: The 3:00 AM Broken Release Outage</h3>
+<p>A faulty commit containing an unhandled Promise rejection is merged to <code>main</code> and deployed automatically.</p>
+<div class="term">
+  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="fn">deploy.sh Output Stream</span><span class="tag warn">INCIDENT</span></div>
+  <pre><code>[INFO] Deploying updated container instances...
+[INFO] Verifying health status of deployed services...
+[WARN] ZeetaFin Backend not ready yet. Retrying in 3s... (1/20)
+[WARN] ZeetaFin Backend not ready yet. Retrying in 3s... (2/20)
+...
+[ERROR] Healthcheck failed for ZeetaFin Backend at http://127.0.0.1:3001/api/docs after 60 seconds.
+[INFO] Triggering emergency rollback to sha-9f2b84c...
+[SUCCESS] ZeetaFin Backend is operational at http://127.0.0.1:3001/api/docs.
+[SUCCESS] Rollback completed successfully and verified.</code></pre>
+</div>
+<p><strong>Forensic Analysis:</strong> The dual-vantage healthcheck probe prevented a zombie deployment. The deployment engine automatically reverted to the previous known stable Git SHA, restoring service availability without human intervention.</p>
+
+<!-- SECTION 11 -->
+<h2 id="checklist"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>11. Architectural Checklist</h2>
+
+<div class="tbl">
+  <table>
+    <thead>
+      <tr>
+        <th>Decision Check</th>
+        <th>Target Architecture</th>
+        <th>Status</th>
+        <th>Cost vs. Reliability Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Perimeter Ingress</strong></td>
+        <td>Strict Security Group TCP 22/3000/3001</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>Saves $40/mo; packet filtering at hypervisor</td>
+      </tr>
+      <tr>
+        <td><strong>Perimeter Egress</strong></td>
+        <td>Single Public Subnet + Direct IGW</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>Saves $38/mo; no NAT Gateway fees</td>
+      </tr>
+      <tr>
+        <td><strong>Anti-SSRF Shield</strong></td>
+        <td>IMDSv2 <code>tokens=required</code>, <code>hop-limit=1</code></td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>$0.00 cost; prevents container credential theft</td>
+      </tr>
+      <tr>
+        <td><strong>EBS Storage</strong></td>
+        <td>20 GB <code>gp3</code> (3000 Baseline IOPS)</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>$1.60/mo; guarantees database I/O performance</td>
+      </tr>
+      <tr>
+        <td><strong>Runtime Provisioning</strong></td>
+        <td>Ansible Playbook Idempotency (<code>changed=0</code>)</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>$0.00 cost; eliminates host configuration drift</td>
+      </tr>
+      <tr>
+        <td><strong>Container Security</strong></td>
+        <td>Multi-Stage Alpine + Non-Root Users</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>Images &lt;160MB; prevents container escape exploits</td>
+      </tr>
+      <tr>
+        <td><strong>Compose Startup</strong></td>
+        <td><code>condition: service_healthy</code> Graph</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>Eliminates database connection race conditions</td>
+      </tr>
+      <tr>
+        <td><strong>Disaster Recovery</strong></td>
+        <td>Terraform Rebuild + S3 Volume Restore</td>
+        <td><strong style="color:var(--mint)">ENFORCED</strong></td>
+        <td>RTO &lt; 15 min, RPO &lt; 1 hr; verified runbook</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</article>
+</div></div>
+
+<footer>
+  <div class="wrap">
+    ZeetaFin Enterprise Cloud Platform • Architectural Decision Lab • Abdulmuiz (Devzane) • <a href="https://github.com/Devzane">GitHub</a>
+  </div>
+</footer>
+
+<script>
+// Scroll Progress
+const bar = document.querySelector('.progress i');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  bar.style.width = ((h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100) + '%';
+});
+
+// TOC Highlighting
+const links = [...document.querySelectorAll('nav.toc a')];
+const obs = new IntersectionObserver(es => {
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('on'));
+      const a = links.find(l => l.getAttribute('href') === '#' + e.target.id);
+      if (a) a.classList.add('on');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+document.querySelectorAll('article h2[id]').forEach(h => obs.observe(h));
+</script>
+</body>
+</html>
