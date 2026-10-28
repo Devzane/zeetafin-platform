@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lab 04: Idempotency Testing & Linux Troubleshooting — ZeetaFin DevOps Masterclass</title>
+<meta name="description" content="Lab 04 of the 12-Part ZeetaFin Production DevOps Series: Proving host idempotency (changed=0), simulating configuration drift, inspecting systemd journal logs, and debugging Linux Docker sockets.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9; --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --line:#e2e8f0;
+  --c1:#6366f1; --c2:#0ea5e9; --c3:#f59e0b; --c4:#10b981; --c5:#8b5cf6; --c6:#ec4899;
+  --accent:#f59e0b; --accent-ink:#d97706; --accent-soft:#fffbeb;
+  --mint:#10b981; --mint-soft:#ecfdf5; --amber:#f59e0b; --amber-soft:#fffbeb; --rose:#ef4444; --rose-soft:#fef2f2;
+  --night:#0a0f1d; --night-2:#11192e; --night-line:#1e293b; --night-ink:#f8fafc; --night-muted:#94a3b8;
+  --sans:"DM Sans","Helvetica Neue",Arial,sans-serif; --head:"Sora","DM Sans",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 3px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#070b14; --surface:#0e1526; --surface-2:#141f38; --ink:#f8fafc; --ink-2:#cbd5e1; --muted:#8899b5; --line:#1d2945;
+    --accent:#fbbf24; --accent-ink:#fde68a; --accent-soft:#332205;
+    --mint:#34d3b4; --mint-soft:#062d25; --amber:#fbbf24; --amber-soft:#332205; --rose:#f87171; --rose-soft:#341318;
+    --shadow:0 1px 3px rgba(0,0,0,.5),0 14px 40px rgba(0,0,0,.45);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(900px 500px at 100% 0,color-mix(in srgb,var(--c3) 8%,transparent),transparent 70%),radial-gradient(800px 500px at 0 30%,color-mix(in srgb,var(--c4) 7%,transparent),transparent 70%),var(--bg);color:var(--ink-2);font-family:var(--sans);font-size:17px;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+.progress{position:fixed;inset:0 0 auto 0;height:4px;z-index:100;background:transparent}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--c3),var(--c4),var(--c1))}
+
+.hero{background:var(--night);color:var(--night-ink);position:relative;overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(750px 380px at 90% -10%,rgba(245,158,11,.4),transparent 62%),radial-gradient(650px 380px at 10% 110%,rgba(16,185,129,.35),transparent 62%),radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.2px) 0 0/26px 26px}
+.hero .wrap{padding-top:40px;padding-bottom:40px}
+
+.sbar{display:flex;gap:8px;margin:0 0 24px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.sbar::-webkit-scrollbar{display:none}
+.sbar .p{display:inline-flex;align-items:center;gap:7px;flex:none;padding:5px 12px 5px 6px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:#cbd5e1;text-decoration:none;font:600 12.5px var(--head);transition:all .18s}
+.sbar .p i{width:22px;height:22px;border-radius:50%;background:var(--c,var(--c1));color:#fff;display:grid;place-items:center;font-style:normal;font-size:11px}
+.sbar .p:hover{background:rgba(255,255,255,.14);color:#fff}
+.sbar .p.on{background:#fff;color:#0a0f1d;border-color:#fff}
+
+.tag-phase{display:inline-block;padding:3px 10px;border-radius:99px;font-family:var(--head);font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:rgba(245,158,11,.2);color:#fbbf24;border:1px solid rgba(245,158,11,.35);margin-bottom:12px}
+h1{font-family:var(--head);font-weight:800;font-size:clamp(30px,4.5vw,50px);line-height:1.1;letter-spacing:-.03em;margin:0;max-width:24ch;color:#fff}
+.dek{font-size:clamp(16px,1.8vw,19px);line-height:1.55;color:#cbd5e1;max-width:65ch;margin:16px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin:20px 0 0;font-family:var(--head);font-size:13px;color:var(--night-muted)}
+.meta span{display:inline-flex;gap:7px;align-items:center}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+.tool{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font:600 12.5px var(--head)}
+
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:48px;align-items:start;padding-top:48px}
+@media (max-width:960px){.layout{grid-template-columns:1fr;gap:28px}}
+nav.toc{position:sticky;top:20px;font-family:var(--head);font-size:13px;max-height:calc(100vh - 40px);overflow-y:auto}
+nav.toc h2{font-size:11.5px;font-weight:700;color:var(--muted);margin:0 0 10px;letter-spacing:.05em;text-transform:uppercase}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:1.5px solid var(--line)}
+nav.toc a{display:block;padding:5px 0 5px 14px;margin-left:-1.5px;border-left:1.5px solid transparent;color:var(--muted);text-decoration:none;line-height:1.35;transition:color .15s}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.on{color:var(--accent);border-left-color:var(--accent);font-weight:700}
+.sidecard{margin-top:22px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:12.5px;line-height:1.5;color:var(--muted);box-shadow:var(--shadow)}
+.sidecard b{display:block;color:var(--ink);font-family:var(--head);font-size:13px;margin-bottom:3px}
+
+article{min-width:0;max-width:860px}
+article h2{font-family:var(--head);font-weight:700;font-size:clamp(22px,2.8vw,30px);line-height:1.22;letter-spacing:-.02em;margin:64px 0 14px;color:var(--ink);scroll-margin-top:20px;display:flex;gap:12px;align-items:center;padding-bottom:12px;border-bottom:2px solid var(--line)}
+article h2 .hi{width:40px;height:40px;border-radius:12px;background:var(--c3);color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 6px 16px rgba(245,158,11,.3)}
+article h2 .hi svg{width:22px;height:22px;stroke-width:2}
+article h2:first-child{margin-top:0}
+article h3{font-family:var(--head);font-weight:700;font-size:18px;line-height:1.3;margin:36px 0 10px;color:var(--ink);scroll-margin-top:20px;letter-spacing:-.01em;background:linear-gradient(90deg,color-mix(in srgb,var(--c3) 10%,transparent),transparent 85%);border-left:5px solid var(--c3);padding:10px 16px;border-radius:0 12px 12px 0}
+article h4{font-family:var(--head);font-weight:700;font-size:16px;margin:24px 0 8px;color:var(--ink)}
+article p{margin:0 0 1.15em}
+article ul,article ol{padding-left:1.3em;margin:0 0 1.25em}
+article li{margin:.35em 0}
+article strong,article b{color:var(--ink);font-weight:700}
+code{font-family:var(--mono);font-size:.85em;background:color-mix(in srgb,var(--c3) 12%,transparent);color:var(--accent-ink);padding:.12em .45em;border-radius:5px;font-weight:500}
+.lead{font-size:1.12em;color:var(--ink);line-height:1.68}
+
+.code,.term{margin:22px 0 26px;border-radius:14px;overflow:hidden;background:var(--night);border:1px solid #223055;box-shadow:0 12px 36px rgba(10,15,29,.22)}
+.bar{display:flex;align-items:center;gap:10px;padding:9px 15px;background:linear-gradient(180deg,#152042,#0d152d);border-bottom:1px solid #1f2c4e;font-family:var(--mono);font-size:12px;color:#8f9cb8}
+.bar .dots{display:flex;gap:5px}.bar .dots i{width:9px;height:9px;border-radius:50%;display:block}
+.bar .dots i:nth-child(1){background:#ff5f57}.bar .dots i:nth-child(2){background:#febc2e}.bar .dots i:nth-child(3){background:#28c840}
+.bar .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.bar .tag{font-family:var(--head);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:#1a2750;color:#fbbf24}
+.copy{all:unset;cursor:pointer;display:inline-flex;gap:5px;align-items:center;font-family:var(--head);font-size:11.5px;color:#fbbf24;padding:3px 8px;border-radius:6px;border:1px solid #273766;transition:all .15s}
+.copy:hover{background:#1a2750;color:#fff}.copy.copied{color:#34d3b4;border-color:#34d3b4;background:rgba(52,211,180,.1)}
+pre{margin:0;font-family:var(--mono);font-size:13.5px;line-height:1.65;color:#dce5f8;padding:15px 17px;overflow-x:auto;tab-size:2}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+
+.callout{display:flex;gap:13px;padding:16px 18px;border-radius:14px;margin:24px 0;border-left-width:5px;border-left-style:solid;box-shadow:var(--shadow);font-size:15px;line-height:1.6}
+.callout>svg{width:26px;height:26px;padding:4px;border-radius:50%;color:#fff;margin-top:2px;flex:none;fill:none;stroke:currentColor;stroke-width:2}
+.callout b.t{display:block;font-family:var(--head);color:var(--ink);margin-bottom:2px;font-weight:700}
+.callout p{margin:0 0 .4em}.callout p:last-child{margin:0}
+.callout.info{background:var(--accent-soft);border-left-color:var(--accent)}.callout.info>svg{background:var(--accent)}
+.callout.warn{background:var(--amber-soft);border-left-color:var(--amber)}.callout.warn>svg{background:var(--amber)}
+.callout.ok{background:var(--mint-soft);border-left-color:var(--mint)}.callout.ok>svg{background:var(--mint)}
+.callout.bad{background:var(--rose-soft);border-left-color:var(--rose)}.callout.bad>svg{background:var(--rose)}
+
+.tbl{overflow-x:auto;margin:22px 0 26px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;font-family:var(--sans)}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--head);font-weight:700;font-size:13px;color:var(--accent-ink);background:color-mix(in srgb,var(--c3) 12%,var(--surface));border-bottom:2px solid color-mix(in srgb,var(--c3) 28%,var(--line))}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 65%,var(--surface))}
+td:first-child{color:var(--ink);font-weight:600}
+
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:50px 0 0}
+.pager a{display:block;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:16px 18px;text-decoration:none;color:var(--ink);box-shadow:var(--shadow);font-family:var(--head);font-weight:700;transition:all .15s}
+.pager a small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-bottom:4px}
+.pager a:hover{border-color:var(--accent);transform:translateY(-2px)}
+.pager .r{text-align:right}
+
+footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 60px;font-family:var(--head);font-size:13.5px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="progress"><i></i></div>
+
+<header class="hero"><div class="wrap">
+  <div class="sbar" aria-label="12-Part Lab Navigation">
+    <a class="p" href="index.html" style="--c:#475569"><i>★</i><span>Curriculum Hub</span></a>
+    <a class="p" href="lab-01-aws-vpc-infrastructure-terraform.html" style="--c:#6366f1"><i>01</i><span>AWS VPC &amp; Network</span></a>
+    <a class="p" href="lab-02-ec2-iam-imdsv2-hardening.html" style="--c:#0ea5e9"><i>02</i><span>EC2 &amp; IMDSv2</span></a>
+    <a class="p" href="lab-03-ansible-automation-docker.html" style="--c:#10b981"><i>03</i><span>Ansible &amp; Docker</span></a>
+    <a class="p on" href="lab-04-idempotency-testing-troubleshooting.html" style="--c:#f59e0b"><i>04</i><span>Idempotency &amp; Linux</span></a>
+    <a class="p" href="lab-05-enterprise-app-architecture-docker-overview.html" style="--c:#8b5cf6"><i>05</i><span>Monorepo &amp; Domain</span></a>
+    <a class="p" href="lab-06-nestjs-backend-multi-stage-docker-build.html" style="--c:#ec4899"><i>06</i><span>NestJS Alpine Build</span></a>
+    <a class="p" href="lab-07-nextjs-frontend-standalone-containerization.html" style="--c:#6366f1"><i>07</i><span>Next.js Standalone</span></a>
+    <a class="p" href="lab-08-docker-compose-orchestration-and-ecr-push.html" style="--c:#0ea5e9"><i>08</i><span>Compose &amp; Persistence</span></a>
+    <a class="p" href="lab-09-aws-iam-ecr-github-secrets-security.html" style="--c:#10b981"><i>09</i><span>ECR &amp; Secrets</span></a>
+    <a class="p" href="lab-10-github-actions-ci-cd-workflow-architecture.html" style="--c:#f59e0b"><i>10</i><span>CI/CD Engine</span></a>
+    <a class="p" href="lab-11-ec2-remote-deployment-engine-automation.html" style="--c:#8b5cf6"><i>11</i><span>Remote Deploy Engine</span></a>
+    <a class="p" href="lab-12-end-to-end-verification-observability-troubleshooting.html" style="--c:#ec4899"><i>12</i><span>Observability &amp; DR</span></a>
+  </div>
+
+  <span class="tag-phase">Phase 2 • Day 1 Configuration Management</span>
+  <h1>Lab 04: Idempotency Testing &amp; Linux SRE</h1>
+  <p class="dek">Validate true operational convergence (changed=0, failed=0), simulate configuration drift by breaking keys, and troubleshoot Linux systemd services, Unix domain sockets, and permissions.</p>
+
+  <div class="meta">
+    <span><strong>Author:</strong> Abdulmuiz (Devzane)</span>
+    <span><strong>System:</strong> Ansible Check Mode • Linux Systemd • /var/run/docker.sock</span>
+    <span><strong>Estimated Duration:</strong> 35 minutes</span>
+    <span><strong>Level:</strong> Production DevOps / SRE</span>
+  </div>
+
+  <div class="tools">
+    <span class="tool">The Idempotency Formula: f(f(x)) = f(x)</span>
+    <span class="tool">Second-Run: changed=0, failed=0</span>
+    <span class="tool">Drift Simulation &amp; Self-Healing</span>
+    <span class="tool">Socket Permissions: srw-rw----</span>
+    <span class="tool">Systemd Journal Diagnostics</span>
+  </div>
+</div></header>
+
+<div class="wrap"><div class="layout">
+
+<nav class="toc" aria-label="Table of Contents">
+  <h2>Lab Navigation</h2>
+  <ol>
+    <li><a href="#idempotency-concept">1. What is Idempotency in SRE?</a></li>
+    <li><a href="#test-run">2. Running the Idempotency Test</a></li>
+    <li><a href="#drift-drill">3. Drift Simulation Drill</a></li>
+    <li><a href="#socket-debug">4. Linux Socket &amp; Group Debugging</a></li>
+    <li><a href="#systemd-logs">5. Systemd Journal Diagnostics</a></li>
+    <li><a href="#troubleshooting">6. Production Troubleshooting</a></li>
+    <li><a href="#checklist">7. Hardening Checklist</a></li>
+  </ol>
+
+  <div class="sidecard">
+    <b>The Golden Rule</b>
+    If running your playbook a second time produces changes, your automation is brittle and will cause deployment failures in production.
+  </div>
+</nav>
+
+<article>
+
+<h2 id="idempotency-concept"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>1. What is Idempotency in SRE?</h2>
+
+<p class="lead">In computer science and site reliability engineering, an operation is idempotent if applying it multiple times yields the exact same result as applying it once:</p>
+
+<p>$$\Large f(f(x)) \equiv f(x)$$</p>
+
+<p>When you execute an Ansible playbook across a fleet of 50 production nodes, you must have absolute mathematical confidence that a re-run will not restart healthy containers, rewrite stable config files, or trigger system downtime unless the target configuration actually drifted.</p>
+
+<div class="callout ok">
+  <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+  <div>
+    <b class="t">The Zero-Drift Benchmark</b>
+    <p><strong>First Run:</strong> <code>ok=8, changed=6, unreachable=0, failed=0</code><br/>
+    <strong>Second Run:</strong> <code>ok=8, changed=0, unreachable=0, failed=0</code></p>
+  </div>
+</div>
+
+<h2 id="test-run"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>2. Running the Idempotency Test</h2>
+
+<p>Execute the second run immediately following Lab 03. Every task must report <code>ok</code> with zero <code>changed</code> tasks:</p>
+
+<div class="code">
+  <div class="bar">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="fn">terminal — secondary idempotency run</div>
+    <div class="tag">BASH</div>
+    <button class="copy" onclick="copyCode(this)">Copy</button>
+  </div>
+  <pre><code># Run playbook a second time against the provisioned host
+cd infra/ansible
+ansible-playbook playbook.yml
+
+# Expected PLAY RECAP:
+# zeetafin_host : ok=8 changed=0 unreachable=0 failed=0 skipped=0 rescued=0 ignored=0</code></pre>
+</div>
+
+<h2 id="drift-drill"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>3. Hands-on Drift Simulation Drill</h2>
+
+<p>To prove that your playbook is truly self-healing, manually inject configuration drift by deleting the Docker GPG keyring on the server, then observe Ansible automatically restore it:</p>
+
+<div class="code">
+  <div class="bar">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="fn">terminal — drift injection & self-healing test</div>
+    <div class="tag">BASH</div>
+    <button class="copy" onclick="copyCode(this)">Copy</button>
+  </div>
+  <pre><code># 1. SSH into host and manually remove the Docker GPG key
+ssh -i ~/.ssh/zeetafin-key ubuntu@$(cd ../terraform && terraform output -raw ec2_public_ip)
+sudo rm -f /etc/apt/keyrings/docker.gpg
+exit
+
+# 2. Run Ansible in dry-run mode (check mode)
+ansible-playbook playbook.yml --check
+
+# Notice Ansible detects missing key and flags: changed=1
+
+# 3. Re-run live playbook to auto-heal drift
+ansible-playbook playbook.yml
+
+# 4. Confirm key has been restored
+ssh -i ~/.ssh/zeetafin-key ubuntu@$(cd ../terraform && terraform output -raw ec2_public_ip) \
+  "ls -la /etc/apt/keyrings/docker.gpg"</code></pre>
+</div>
+
+<h2 id="socket-debug"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>4. Linux Socket &amp; Group Debugging</h2>
+
+<p>When containers fail to start or developers cannot run <code>docker</code> commands, the root cause is almost always Unix domain socket permissions:</p>
+
+<div class="code">
+  <div class="bar">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="fn">terminal — inspecting unix socket permissions</div>
+    <div class="tag">BASH</div>
+    <button class="copy" onclick="copyCode(this)">Copy</button>
+  </div>
+  <pre><code># Check socket ownership and permissions
+ls -la /var/run/docker.sock
+# Expected output:
+# srw-rw---- 1 root docker 0 Oct 28 12:00 /var/run/docker.sock
+
+# Inspect group membership for user ubuntu
+id ubuntu
+# Must show: uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu),...,999(docker)
+
+# If docker group is present but active shell lacks permissions:
+newgrp docker</code></pre>
+</div>
+
+<h2 id="systemd-logs"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>5. Systemd Journal Diagnostics</h2>
+
+<div class="code">
+  <div class="bar">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="fn">terminal — systemd journal troubleshooting</div>
+    <div class="tag">BASH</div>
+    <button class="copy" onclick="copyCode(this)">Copy</button>
+  </div>
+  <pre><code># 1. Check detailed status of docker service
+sudo systemctl status docker.service --no-pager
+
+# 2. View recent 50 lines of docker daemon logs
+sudo journalctl -u docker.service -n 50 --no-pager
+
+# 3. Check for iptables / bridge errors
+sudo journalctl -u docker.service | grep -i "bridge"</code></pre>
+</div>
+
+<h2 id="troubleshooting"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>6. Production Troubleshooting Matrix</h2>
+
+<div class="tbl">
+  <table>
+    <thead>
+      <tr>
+        <th>Symptom</th>
+        <th>Investigation Step</th>
+        <th>Remediation</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Second playbook run reports <code>changed > 0</code></td>
+        <td>Check which specific task changed in Ansible stdout.</td>
+        <td>Tasks using raw shell commands without <code>creates</code> or <code>changed_when: false</code> violate idempotency. Add guard clauses.</td>
+      </tr>
+      <tr>
+        <td><code>dial unix /var/run/docker.sock: connect: permission denied</code></td>
+        <td>Run <code>groups</code> to check active shell groups.</td>
+        <td>Run <code>newgrp docker</code> or log out and reconnect SSH to refresh user session tokens.</td>
+      </tr>
+      <tr>
+        <td>Docker daemon crashes on start</td>
+        <td>Inspect <code>journalctl -u docker.service</code>.</td>
+        <td>Check for invalid JSON in <code>/etc/docker/daemon.json</code> or IP collision on <code>172.17.0.0/16</code> (default bridge).</td>
+      </tr>
+      <tr>
+        <td>Playbook hangs on APT task</td>
+        <td>Run <code>ps aux | grep apt</code> on the remote server.</td>
+        <td>Another process or automatic unattended-upgrades holds <code>/var/lib/dpkg/lock</code>. Kill hanging PID or wait for release.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h2 id="checklist"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>7. Hardening Checklist</h2>
+
+<ul>
+  <li>[x] Secondary playbook execution confirms 100% idempotency (<code>changed=0, failed=0</code>).</li>
+  <li>[x] Check mode (<code>--check</code>) functions cleanly without side effects.</li>
+  <li>[x] Intentional configuration drift simulated and self-healed by Ansible.</li>
+  <li>[x] Docker socket permissions verified as <code>srw-rw---- root docker</code>.</li>
+  <li>[x] Non-root <code>ubuntu</code> user verified capable of communicating with socket.</li>
+  <li>[x] Systemd journal health logs confirmed clean with zero bridge or network errors.</li>
+</ul>
+
+<div class="pager">
+  <a href="lab-03-ansible-automation-docker.html" class="l">
+    <small>← Previous Lab</small>
+    Lab 03: Ansible Automation for Docker CE
+  </a>
+  <a href="lab-05-enterprise-app-architecture-docker-overview.html" class="r">
+    <small>Next Lab →</small>
+    Lab 05: Enterprise App Architecture &amp; Domain
+  </a>
+</div>
+
+</article>
+</div></div>
+
+<footer>
+  <div class="wrap">
+    ZeetaFin Production DevOps Masterclass • Lab 04 • Abdulmuiz (Devzane) • <a href="https://github.com/Devzane/zeetafin-platform">GitHub Repository</a>
+  </div>
+</footer>
+
+<script>
+function copyCode(btn){
+  const pre=btn.closest('.code,.term').querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(()=>{
+    btn.classList.add('copied');
+    btn.textContent='Copied!';
+    setTimeout(()=>{
+      btn.classList.remove('copied');
+      btn.textContent='Copy';
+    },2000);
+  });
+}
+window.addEventListener('scroll',()=>{
+  const el=document.documentElement;
+  const pct=(el.scrollTop/(el.scrollHeight-el.clientHeight))*100;
+  document.querySelector('.progress i').style.width=pct+'%';
+});
+const tocLinks=document.querySelectorAll('nav.toc a');
+const sections=document.querySelectorAll('article h2');
+window.addEventListener('scroll',()=>{
+  let cur='';
+  sections.forEach(s=>{
+    if(window.scrollY>=s.offsetTop-100) cur=s.id;
+  });
+  tocLinks.forEach(l=>{
+    l.classList.toggle('on',l.getAttribute('href')==='#'+cur);
+  });
+});
+</script>
+</body>
+</html>
