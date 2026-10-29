@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lab 01: AWS VPC & Network Foundation with Terraform — ZeetaFin DevOps Masterclass</title>
+<title>Lab 01: AWS VPC &amp; Network Foundation with Terraform — ZeetaFin DevOps Masterclass</title>
 <meta name="description" content="Lab 01 of the 12-Part ZeetaFin Production DevOps Series: Provisioning isolated VPCs, subnets, internet gateways, and security groups with Terraform Infrastructure as Code.">
 <meta name="color-scheme" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,7 +13,7 @@
 :root{
   --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9; --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --line:#e2e8f0;
   --c1:#6366f1; --c2:#0ea5e9; --c3:#f59e0b; --c4:#10b981; --c5:#8b5cf6; --c6:#ec4899;
-  --accent:#4f46e5; --accent-ink:#4338ca; --accent-soft:#eef2ff;
+  --accent:#6366f1; --accent-ink:#4338ca; --accent-soft:#eef2ff;
   --mint:#10b981; --mint-soft:#ecfdf5; --amber:#f59e0b; --amber-soft:#fffbeb; --rose:#ef4444; --rose-soft:#fef2f2;
   --night:#0a0f1d; --night-2:#11192e; --night-line:#1e293b; --night-ink:#f8fafc; --night-muted:#94a3b8;
   --sans:"DM Sans","Helvetica Neue",Arial,sans-serif; --head:"Sora","DM Sans",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -56,6 +56,8 @@ h1{font-family:var(--head);font-weight:800;font-size:clamp(30px,4.5vw,50px);line
 .meta span{display:inline-flex;gap:7px;align-items:center}
 .tools{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
 .tool{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font:600 12.5px var(--head)}
+.hero-art{margin-top:32px;border:1px solid rgba(255,255,255,.18);border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));padding:12px;box-shadow:0 24px 60px rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+.hero-art>svg{display:block;width:100%;height:auto}
 
 /* Layout */
 .layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:48px;align-items:start;padding-top:48px}
@@ -114,11 +116,31 @@ th{font-family:var(--head);font-weight:700;font-size:13px;color:var(--accent-ink
 tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 65%,var(--surface))}
 td:first-child{color:var(--ink);font-weight:600}
 
-/* Architecture Art Card */
-.art-card{margin:24px 0 28px;border-radius:18px;background:var(--night);border:1px solid #223055;padding:20px;box-shadow:0 16px 40px rgba(0,0,0,.35)}
-.art-card svg{display:block;width:100%;height:auto}
+/* Figures & Diagrams */
+figure{margin:32px 0}
+.fig{background:var(--night);border:1px solid #223055;border-radius:16px;padding:16px;box-shadow:0 14px 40px rgba(10,15,29,.28);overflow-x:auto}
+.fig>svg{display:block;width:100%;height:auto;min-width:640px}
+figcaption{font-family:var(--head);font-size:13px;font-weight:600;color:var(--muted);margin:10px 4px 0;line-height:1.5}
+figcaption b{color:var(--accent-ink)}
 
-/* Pager */
+/* SVG Theming Classes */
+svg text{font-family:var(--sans);fill:#cbd5e1}
+svg .t{font-family:var(--head);font-weight:700;font-size:14px;fill:#ffffff}
+svg .s{font-size:11.5px;fill:#94a3b8}
+svg .mono{font-family:var(--mono);fill:#e2e8f0;font-size:11.5px}
+svg .lbl{font-family:var(--head);font-size:11.5px;font-weight:700;fill:#ffffff;paint-order:stroke;stroke:#0a0f1d;stroke-width:4px;stroke-linejoin:round}
+svg .node{fill:color-mix(in srgb,var(--c) 14%,#0e1526);stroke:var(--c);stroke-width:1.8}
+svg .chip{fill:var(--c)}
+svg .ico{color:#ffffff;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+svg .edge{fill:none;stroke:#64748b;stroke-width:1.8}
+svg .edge-a{fill:none;stroke:#818cf8;stroke-width:2.2}
+svg .edge-g{fill:none;stroke:#34d3b4;stroke-width:2.2}
+svg .edge-r{fill:none;stroke:#f87171;stroke-width:2.2;stroke-dasharray:5 4}
+svg .zone{fill:none;stroke:#475569;stroke-width:1.6;stroke-dasharray:6 5}
+svg .zone-fill{fill:color-mix(in srgb,var(--c) 8%,transparent);stroke:var(--c);stroke-width:1.8}
+.k-net{--c:#38bdf8}.k-comp{--c:#818cf8}.k-sec{--c:#fbbf24}.k-store{--c:#34d3b4}.k-ext{--c:#94a3b8}.k-bad{--c:#f87171}.k-ok{--c:#34d3b4}
+.mk-a{fill:#818cf8}.mk-g{fill:#34d3b4}.mk-r{fill:#f87171}.mk-n{fill:#94a3b8}
+
 .pager{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:50px 0 0}
 .pager a{display:block;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:16px 18px;text-decoration:none;color:var(--ink);box-shadow:var(--shadow);font-family:var(--head);font-weight:700;transition:all .15s}
 .pager a small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-bottom:4px}
@@ -130,6 +152,28 @@ footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 60px;font
 </head>
 <body>
 <div class="progress"><i></i></div>
+
+<!-- Reusable SVG Icon Symbols & Markers -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6.5" rx="2"/><rect x="3" y="13.5" width="18" height="6.5" rx="2"/><path d="M7 7.25h.01M7 16.75h.01M11 7.25h6M11 16.75h6"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="2"/><path d="M2 19h20"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-network" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1.2"/><rect x="2" y="16" width="6" height="5" rx="1.2"/><rect x="16" y="16" width="6" height="5" rx="1.2"/><path d="M12 8v4M5 16v-4h14v4"/></symbol>
+    <symbol id="i-wall" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9.3h18M3 14.7h18M12 4v5.3M7.5 9.3v5.4M16.5 9.3v5.4M12 14.7V20"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7.5A2.5 2.5 0 0 0 5 5.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+
+    <!-- Arrow Markers -->
+    <marker id="mk-a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path class="mk-a" d="M1 1.5 9 5 1 8.5z"/></marker>
+    <marker id="mk-g" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path class="mk-g" d="M1 1.5 9 5 1 8.5z"/></marker>
+    <marker id="mk-r" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path class="mk-r" d="M1 1.5 9 5 1 8.5z"/></marker>
+    <marker id="mk-n" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path class="mk-n" d="M1 1.5 9 5 1 8.5z"/></marker>
+  </defs>
+</svg>
 
 <header class="hero"><div class="wrap">
   <div class="sbar" aria-label="12-Part Lab Navigation">
@@ -166,6 +210,87 @@ footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 60px;font
     <span class="tool">Strict /32 Ingress</span>
     <span class="tool">Zero Default VPC Drift</span>
   </div>
+
+  <!-- HERO TOPOLOGY DIAGRAM -->
+  <div class="hero-art">
+    <svg viewBox="0 0 1120 420" role="img" aria-label="AWS VPC Network Foundation Architecture">
+      <!-- AWS Region Outer Boundary -->
+      <rect class="zone" x="250" y="16" width="850" height="388" rx="22"/>
+      <use href="#i-cloud" x="270" y="32" width="22" height="22" class="ico" style="color:#818cf8"/>
+      <text class="s" x="300" y="48">AWS Cloud  ·  Region: us-east-1 (N. Virginia)</text>
+
+      <!-- Internet Gateway -->
+      <g class="k-net">
+        <rect class="node" x="280" y="75" width="240" height="65" rx="12"/>
+        <rect class="chip" x="292" y="88" width="36" height="36" rx="8"/>
+        <use href="#i-globe" x="300" y="96" width="20" height="20" class="ico"/>
+        <text class="t" x="338" y="102">Internet Gateway</text>
+        <text class="mono" x="338" y="122" style="fill:#38bdf8">zeetafin-igw-production</text>
+      </g>
+
+      <!-- Public Route Table -->
+      <g class="k-sec">
+        <rect class="node" x="570" y="75" width="250" height="65" rx="12"/>
+        <rect class="chip" x="582" y="88" width="36" height="36" rx="8"/>
+        <use href="#i-network" x="590" y="96" width="20" height="20" class="ico"/>
+        <text class="t" x="628" y="102">Route Table (0.0.0.0/0)</text>
+        <text class="mono" x="628" y="122" style="fill:#fbbf24">Target: igw-xxxxxxxx</text>
+      </g>
+      <path class="edge-a" d="M520 107 L570 107" marker-end="url(#mk-a)"/>
+
+      <!-- VPC Boundary -->
+      <g class="k-comp">
+        <rect class="zone-fill" x="280" y="160" width="790" height="225" rx="18"/>
+        <use href="#i-network" x="300" y="174" width="18" height="18" class="ico"/>
+        <text class="s" x="325" y="188">VPC: zeetafin-vpc-production  ·  CIDR: 10.0.0.0/16 (65,536 Total IPs)</text>
+      </g>
+      <path class="edge-a" d="M695 140 L695 160"/>
+
+      <!-- Public Subnet Boundary -->
+      <g class="k-net">
+        <rect class="zone-fill" x="305" y="200" width="740" height="165" rx="14"/>
+        <text class="s" x="325" y="222">Public Subnet: 10.0.1.0/24  ·  AZ: us-east-1a  ·  251 Usable Host IPs</text>
+      </g>
+
+      <!-- Security Group Rules Container -->
+      <rect x="325" y="235" width="700" height="115" rx="12" fill="#0d152d" stroke="#fbbf24" stroke-width="1.6" stroke-dasharray="6 5"/>
+      <use href="#i-wall" x="340" y="246" width="18" height="18" class="ico" style="color:#fbbf24"/>
+      <text class="s" x="365" y="258" style="fill:#fbbf24">Perimeter Defense: zeetafin-host-sg-production (Bound to Operator IP)</text>
+
+      <!-- Rule 1: SSH -->
+      <rect x="340" y="275" width="150" height="60" rx="8" fill="#141f38" stroke="#34d3b4"/>
+      <text class="mono" x="350" y="298" style="fill:#34d3b4">TCP 22 (SSH)</text>
+      <text class="s" x="350" y="318">Operator /32 Only</text>
+
+      <!-- Rule 2: Web Frontend -->
+      <rect x="505" y="275" width="150" height="60" rx="8" fill="#141f38" stroke="#38bdf8"/>
+      <text class="mono" x="515" y="298" style="fill:#38bdf8">TCP 3000 (UI)</text>
+      <text class="s" x="515" y="318">Next.js Frontend</text>
+
+      <!-- Rule 3: API Backend -->
+      <rect x="670" y="275" width="150" height="60" rx="8" fill="#141f38" stroke="#fbbf24"/>
+      <text class="mono" x="680" y="298" style="fill:#fbbf24">TCP 3001 (API)</text>
+      <text class="s" x="680" y="318">NestJS Backend</text>
+
+      <!-- Rule 4: Blocked Postgres -->
+      <rect x="835" y="275" width="170" height="60" rx="8" fill="#1e1528" stroke="#f87171"/>
+      <text class="mono" x="845" y="298" style="fill:#f87171">TCP 5432 (DB)</text>
+      <text class="mono" x="845" y="318" style="fill:#f87171">BLOCKED FROM WEB</text>
+
+      <!-- Operator Workstation (Left) -->
+      <g class="k-ext">
+        <rect class="node" x="16" y="160" width="180" height="114" rx="14"/>
+        <rect class="chip" x="28" y="174" width="36" height="36" rx="10"/>
+        <use href="#i-laptop" x="35" y="181" width="22" height="22" class="ico"/>
+        <text class="t" x="72" y="192">Operator Workstation</text>
+        <text class="s" x="72" y="210">Your Laptop IP</text>
+        <text class="mono" x="28" y="242" style="fill:#34d3b4">curl checkip ➔ /32</text>
+        <text class="s" x="28" y="260">Terraform 1.10 Controller</text>
+      </g>
+      <path class="edge-a" d="M196 217 L280 107" marker-end="url(#mk-a)"/>
+      <text class="lbl" x="238" y="150" text-anchor="middle" style="fill:#38bdf8">HTTPS / SSH</text>
+    </svg>
+  </div>
 </div></header>
 
 <div class="wrap"><div class="layout">
@@ -174,19 +299,19 @@ footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 60px;font
   <h2>Lab Navigation</h2>
   <ol>
     <li><a href="#objectives">1. Lab Objectives</a></li>
-    <li><a href="#topology">2. Network Topology &amp; Flow</a></li>
+    <li><a href="#topology">2. Network Topology &amp; Traffic Flow</a></li>
     <li><a href="#prerequisites">3. Prerequisites &amp; Setup</a></li>
     <li><a href="#structure">4. Project Structure</a></li>
     <li><a href="#iac-code">5. Terraform Implementation</a></li>
     <li><a href="#execution">6. Execution &amp; Apply</a></li>
-    <li><a href="#verification">7. AWS CLI Verification</a></li>
-    <li><a href="#troubleshooting">8. Production Troubleshooting</a></li>
-    <li><a href="#checklist">9. Hardening Checklist</a></li>
+    <li><a href="#verification">7. AWS CLI Verification Drill</a></li>
+    <li><a href="#troubleshooting">8. Production Troubleshooting Matrix</a></li>
+    <li><a href="#checklist">9. Production Hardening Checklist</a></li>
   </ol>
 
   <div class="sidecard">
-    <b>Lab Focus</b>
-    Eliminate default VPC vulnerabilities and manual ClickOps by codifying AWS networking from scratch.
+    <b>Security Mandate</b>
+    Never deploy into the AWS Default VPC. Bind all ingress to explicit /32 operator IPs.
   </div>
 </nav>
 
@@ -204,51 +329,64 @@ footer{margin-top:80px;border-top:1px solid var(--line);padding:32px 0 60px;font
   <li><strong>Enforce Reproducible IaC:</strong> Pin Terraform core and AWS provider versions to prevent breaking upstream syntax changes in CI/CD pipelines.</li>
 </ul>
 
+<!-- DIAGRAM: NETWORK TOPOLOGY & PACKET FLOW -->
 <h2 id="topology"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>2. Network Topology &amp; Traffic Flow</h2>
 
-<div class="art-card">
-  <svg viewBox="0 0 880 340" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="880" height="340" rx="16" fill="#0d152d"/>
-    <!-- AWS Boundary -->
-    <rect x="20" y="20" width="840" height="300" rx="12" stroke="#223055" stroke-dasharray="6 6" fill="rgba(255,255,255,0.01)"/>
-    <text x="40" y="44" fill="#8899b5" font-family="'JetBrains Mono',monospace" font-size="12" font-weight="700">AWS CLOUD (REGION: us-east-1)</text>
+<p>A resilient cloud network separates the perimeter from the core. Ingress packets travel through an Internet Gateway and route table before reaching the stateful security group at the hypervisor boundary:</p>
 
-    <!-- Internet Gateway -->
-    <rect x="50" y="70" width="160" height="70" rx="8" fill="#141f38" stroke="#3b82f6" stroke-width="1.5"/>
-    <text x="70" y="100" fill="#93c5fd" font-family="'Sora',sans-serif" font-size="13" font-weight="700">Internet Gateway</text>
-    <text x="70" y="122" fill="#64748b" font-family="'JetBrains Mono',monospace" font-size="10.5">zeetafin-igw-prod</text>
+<figure>
+  <div class="fig">
+    <svg viewBox="0 0 920 320" role="img" aria-label="Ingress and Egress Packet Journey">
+      <!-- Background Card -->
+      <rect width="920" height="320" rx="16" fill="#0d152d" stroke="#223055" stroke-width="1.5"/>
+      <text x="32" y="34" fill="#818cf8" font-family="'JetBrains Mono',monospace" font-size="12" font-weight="700">ZEETAFIN PRODUCTION NETWORK FLOW &amp; HYPERVISOR BOUNDARIES</text>
 
-    <!-- Route Table -->
-    <rect x="250" y="70" width="170" height="70" rx="8" fill="#141f38" stroke="#6366f1" stroke-width="1.5"/>
-    <text x="270" y="100" fill="#a5b4fc" font-family="'Sora',sans-serif" font-size="13" font-weight="700">Route Table (0.0.0.0/0)</text>
-    <text x="270" y="122" fill="#64748b" font-family="'JetBrains Mono',monospace" font-size="10.5">Target: igw-xxxxxxxx</text>
+      <!-- Client Packet Source -->
+      <g class="k-ext">
+        <rect class="node" x="25" y="60" width="180" height="110" rx="12"/>
+        <use href="#i-laptop" x="38" y="75" width="22" height="22" class="ico"/>
+        <text class="t" x="70" y="90">Operator Laptop</text>
+        <text class="mono" x="38" y="120" style="fill:#34d3b4">Src: YOUR_IP/32</text>
+        <text class="s" x="38" y="145">Port 22, 3000, 3001</text>
+      </g>
 
-    <!-- VPC Box -->
-    <rect x="50" y="165" width="780" height="135" rx="10" fill="#11192e" stroke="#4f46e5" stroke-width="1.5"/>
-    <text x="70" y="190" fill="#a5b4fc" font-family="'JetBrains Mono',monospace" font-size="12" font-weight="700">VPC: 10.0.0.0/16 (zeetafin-vpc-production)</text>
+      <!-- Internet Transit Arrow -->
+      <path class="edge-a" d="M205 115 L285 115" marker-end="url(#mk-a)"/>
+      <text class="lbl" x="245" y="105" text-anchor="middle" style="fill:#38bdf8">Public Web</text>
 
-    <!-- Subnet Box -->
-    <rect x="70" y="205" width="740" height="80" rx="8" fill="#152042" stroke="#0ea5e9" stroke-width="1.2"/>
-    <text x="90" y="228" fill="#7dd3fc" font-family="'JetBrains Mono',monospace" font-size="11.5" font-weight="700">Public Subnet: 10.0.1.0/24 (AZ: us-east-1a) • map_public_ip_on_launch = true</text>
+      <!-- Internet Gateway -->
+      <g class="k-net">
+        <rect class="node" x="285" y="60" width="180" height="110" rx="12"/>
+        <use href="#i-globe" x="300" y="75" width="22" height="22" class="ico"/>
+        <text class="t" x="330" y="90">Internet Gateway</text>
+        <text class="s" x="300" y="120">Performs 1:1 NAT</text>
+        <text class="s" x="300" y="145">Public IP ➔ Private IP</text>
+      </g>
 
-    <!-- Security Group Rule Badges inside subnet -->
-    <rect x="90" y="242" width="165" height="30" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="100" y="262" fill="#34d3b4" font-family="'JetBrains Mono',monospace" font-size="10.5">TCP 22: Operator/32</text>
+      <!-- Routing Table Arrow -->
+      <path class="edge-a" d="M465 115 L545 115" marker-end="url(#mk-a)"/>
+      <text class="lbl" x="505" y="105" text-anchor="middle" style="fill:#fbbf24">0.0.0.0/0</text>
 
-    <rect x="270" y="242" width="165" height="30" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="280" y="262" fill="#38bdf8" font-family="'JetBrains Mono',monospace" font-size="10.5">TCP 3000: Operator/32</text>
+      <!-- Stateful Security Group (Hypervisor) -->
+      <g class="k-sec">
+        <rect class="node" x="545" y="60" width="345" height="230" rx="14"/>
+        <use href="#i-shield" x="560" y="75" width="22" height="22" class="ico"/>
+        <text class="t" x="590" y="90">Stateful Security Group: zeetafin-app-sg</text>
+        <text class="s" x="560" y="115">Evaluates packet at AWS Nitro Hypervisor NIC level</text>
 
-    <rect x="450" y="242" width="165" height="30" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="460" y="262" fill="#fbbf24" font-family="'JetBrains Mono',monospace" font-size="10.5">TCP 3001: Operator/32</text>
+        <!-- Evaluation Rules -->
+        <rect x="560" y="130" width="315" height="38" rx="6" fill="#0f2922" stroke="#34d3b4"/>
+        <text class="mono" x="572" y="154" style="fill:#34d3b4">✓ Src == YOUR_IP/32 &amp;&amp; Port in [22,3000,3001] ➔ ALLOW</text>
 
-    <rect x="630" y="242" width="165" height="30" rx="6" fill="#1e293b" stroke="#334155"/>
-    <text x="640" y="262" fill="#f87171" font-family="'JetBrains Mono',monospace" font-size="10.5">TCP 5432: BLOCKED</text>
+        <rect x="560" y="175" width="315" height="38" rx="6" fill="#1e1528" stroke="#f87171"/>
+        <text class="mono" x="572" y="199" style="fill:#f87171">✗ Src != YOUR_IP/32 || Port == 5432 ➔ DROP SILENTLY</text>
 
-    <!-- Flow Arrows -->
-    <path d="M210 105 L250 105" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
-    <path d="M335 140 L335 165" stroke="#38bdf8" stroke-width="2"/>
-  </svg>
-</div>
+        <text class="mono" x="560" y="240" style="fill:#38bdf8">Stateful Return: Outbound replies bypass inbound filters automatically</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption><b>Figure 2.1:</b> Packet journey through the AWS network stack. Packets are evaluated statefully at the Nitro hypervisor virtual interface; blocked ports like 5432 (Postgres) are silently discarded without returning TCP RST.</figcaption>
+</figure>
 
 <h2 id="prerequisites"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>3. Prerequisites &amp; Setup</h2>
 
@@ -294,13 +432,53 @@ curl -s https://checkip.amazonaws.com</code></pre>
   </div>
   <pre><code>infra/terraform/
 ├── versions.tf          # Provider requirements and version constraints
-├── variables.tf         # Input variable definitions & validation rules
-├── main.tf              # VPC, Subnet, Internet Gateway & Security Groups
+├── variables.tf         # Input variable definitions &amp; validation rules
+├── main.tf              # VPC, Subnet, Internet Gateway &amp; Security Groups
 ├── outputs.tf           # Exported infrastructure values (IDs, CIDRs)
 └── terraform.tfvars     # Local variables (gitignored, contains operator IP)</code></pre>
 </div>
 
+<!-- DIAGRAM: STATEFUL SG VS STATELESS NACL -->
 <h2 id="iac-code"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>5. Terraform Implementation</h2>
+
+<p>Understanding the difference between <strong>Stateful Security Groups</strong> and <strong>Stateless Network ACLs (NACLs)</strong> is vital for production infrastructure design:</p>
+
+<figure>
+  <div class="fig">
+    <svg viewBox="0 0 920 280" role="img" aria-label="Stateful Security Groups vs Stateless NACLs">
+      <!-- Left: Stateful SG -->
+      <g class="k-ok">
+        <rect class="node" x="20" y="30" width="425" height="225" rx="14"/>
+        <use href="#i-check" x="38" y="46" width="22" height="22" class="ico" style="color:#34d3b4"/>
+        <text class="t" x="70" y="62" style="fill:#34d3b4">Stateful Security Group (Instance Level)</text>
+        <text class="s" x="38" y="95">Operates at the virtual network interface (ENI)</text>
+        
+        <rect x="38" y="110" width="385" height="42" rx="6" fill="#0f2922" stroke="#34d3b4"/>
+        <text class="mono" x="50" y="135" style="fill:#34d3b4">Inbound Traffic Allowed ➔ Outbound Response AUTO-ALLOWED</text>
+
+        <text class="s" x="38" y="180">✓ No need to open return ephemeral port ranges</text>
+        <text class="s" x="38" y="202">✓ Tracks TCP connection states automatically in memory</text>
+        <text class="s" x="38" y="224">✓ Default: Deny all ingress, Allow all egress</text>
+      </g>
+
+      <!-- Right: Stateless NACL -->
+      <g class="k-bad">
+        <rect class="node" x="475" y="30" width="425" height="225" rx="14"/>
+        <use href="#i-x" x="493" y="46" width="22" height="22" class="ico" style="color:#f87171"/>
+        <text class="t" x="525" y="62" style="fill:#f87171">Stateless Network ACL (Subnet Boundary)</text>
+        <text class="s" x="493" y="95">Operates at the subnet router boundary</text>
+
+        <rect x="493" y="110" width="385" height="42" rx="6" fill="#1e1528" stroke="#f87171"/>
+        <text class="mono" x="505" y="135" style="fill:#f87171">Inbound Allowed ➔ Outbound Reply BLOCKED without rule!</text>
+
+        <text class="s" x="493" y="180">✗ Requires explicitly opening ephemeral ports 1024–65535</text>
+        <text class="s" x="493" y="202">✗ Does NOT remember connection state across packet boundaries</text>
+        <text class="s" x="493" y="224">✗ Evaluated in numbered order (e.g. Rule 100 before 200)</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption><b>Figure 5.1:</b> Security Group statefulness. Because security groups are stateful, return traffic for an established SSH or HTTP connection is automatically permitted regardless of outbound rules.</figcaption>
+</figure>
 
 <h3>A. Provider &amp; Version Locking (<code>versions.tf</code>)</h3>
 <div class="code">
@@ -536,7 +714,43 @@ terraform plan -out=tfplan
 terraform apply tfplan</code></pre>
 </div>
 
+<!-- DIAGRAM: SUBNET MATH & AWS RESERVED IPS -->
 <h2 id="verification"><span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>7. AWS CLI Verification Drill</h2>
+
+<p>Notice that in a <code>/24</code> subnet (256 IP addresses), AWS automatically reserves <strong>5 IP addresses</strong>, leaving exactly 251 usable host IPs:</p>
+
+<figure>
+  <div class="fig">
+    <svg viewBox="0 0 920 220" role="img" aria-label="AWS Subnet CIDR Math and Reserved Addresses">
+      <!-- Total Subnet Box -->
+      <rect width="920" height="220" rx="16" fill="#0d152d" stroke="#223055" stroke-width="1.5"/>
+      <text x="32" y="32" fill="#38bdf8" font-family="'JetBrains Mono',monospace" font-size="12" font-weight="700">SUBNET 10.0.1.0/24 IP RESERVATION BREAKDOWN (256 TOTAL ADDRESSES)</text>
+
+      <!-- 5 Reserved Addresses (Left) -->
+      <g class="k-sec">
+        <rect class="node" x="30" y="55" width="480" height="140" rx="12"/>
+        <text class="t" x="45" y="80" style="fill:#fbbf24">5 AWS Reserved Addresses (Non-Assignable)</text>
+        <text class="mono" x="45" y="105" style="fill:#fbbf24">10.0.1.0   ➔ Network Address</text>
+        <text class="mono" x="45" y="125" style="fill:#fbbf24">10.0.1.1   ➔ AWS VPC Router</text>
+        <text class="mono" x="45" y="145" style="fill:#fbbf24">10.0.1.2   ➔ Amazon Route 53 DNS Resolver</text>
+        <text class="mono" x="45" y="165" style="fill:#fbbf24">10.0.1.3   ➔ Reserved for Future AWS Internal Use</text>
+        <text class="mono" x="45" y="185" style="fill:#fbbf24">10.0.1.255 ➔ Network Broadcast Address</text>
+      </g>
+
+      <!-- Usable Addresses (Right) -->
+      <g class="k-ok">
+        <rect class="node" x="540" y="55" width="350" height="140" rx="12"/>
+        <use href="#i-check" x="555" y="70" width="22" height="22" class="ico" style="color:#34d3b4"/>
+        <text class="t" x="585" y="85" style="fill:#34d3b4">251 Usable Host Addresses</text>
+        <rect x="555" y="105" width="320" height="50" rx="8" fill="#0f2922" stroke="#34d3b4"/>
+        <text class="mono" x="570" y="128" style="fill:#34d3b4">Range: 10.0.1.4 ➔ 10.0.1.254</text>
+        <text class="s" x="570" y="145">Allocated dynamically to EC2 interfaces (ENI)</text>
+        <text class="s" x="555" y="180">Verified by AWS describe-subnets API</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption><b>Figure 7.1:</b> CIDR block allocation math. AWS always reserves the first four and the last IP in every subnet for routing, internal DNS, and broadcast.</figcaption>
+</figure>
 
 <p>Validate that AWS has provisioned the network resources according to specifications:</p>
 
