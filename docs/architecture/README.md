@@ -46,3 +46,9 @@ This directory contains the visual system architecture blueprints, network diagr
 * **Ansible Configuration**: [`ansible-playbook-run.png`](ansible-playbook-run.png)
 * **Ansible Idempotency Verification**: [`ansible-idempotency.png`](ansible-idempotency.png)
 * **Docker Engine Readiness**: [`docker-verify.png`](docker-verify.png)
+
+---
+
+## 4. FinOps & Cloud Cost Optimization Analysis
+
+* 💰 [**FinOps & Cost Optimization Breakdown**](cost-optimization-analysis.md): Complete engineering analysis detailing the architectural trade-offs, Zero-NAT Gateway topology, and gp3 storage strategy that reduced baseline cloud expenditure by **91.8%** ($347.45/mo to $28.48/mo).
