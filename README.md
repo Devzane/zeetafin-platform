@@ -451,11 +451,12 @@ All cloud infrastructure, automation playbooks, and container builds have been v
 
 ---
 
-## 🛠️ SRE Operational Runbooks
+## 🛠️ SRE Operational Runbooks & Architecture Specifications
 
-Standard Operating Procedures (SOPs) engineered for enterprise production reliability:
+Standard Operating Procedures (SOPs) and FinOps analyses engineered for enterprise production reliability:
 
-* 📖 [**Disaster Recovery Runbook**](docs/runbooks/disaster-recovery.md): Complete disaster recovery protocol for full-region failovers, Terraform re-provisioning, Ansible host re-configuration, and PostgreSQL state restoration from S3 snapshots.
+* 💰 [**FinOps & Cloud Cost Optimization Analysis**](docs/architecture/cost-optimization-analysis.md): Engineering analysis detailing the Zero-NAT Gateway topology, gp3 storage strategy, and architectural trade-offs reducing baseline cloud expenditure by **91.8%** ($347.45/mo to $28.48/mo).
+* 📖 [**Disaster Recovery Runbook**](docs/runbooks/disaster-recovery.md): Complete disaster recovery protocol for full-region failovers, Terraform re-provisioning, Ansible host re-configuration, and PostgreSQL state restoration from S3 snapshots (RTO < 15 min, RPO < 1 hr).
 * 🔐 [**Zero-Downtime Secret Rotation Runbook**](docs/runbooks/secret-rotation.md): Operational guide for rotating IAM credentials, database master passwords, and application JWT signing keys without service interruption.
 
 ---
