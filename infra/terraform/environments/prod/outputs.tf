@@ -10,7 +10,7 @@ output "public_ip" {
 
 output "ssh_command" {
   description = "Copy-paste SSH command to connect to the instance."
-  value       = "ssh -i ~/.ssh/phase1-key ubuntu@${aws_instance.main.public_ip}"
+  value       = "ssh -i ~/.ssh/zeetafin-deployer ubuntu@${aws_instance.main.public_ip}"
 }
 
 output "ami_id" {
