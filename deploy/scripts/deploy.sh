@@ -77,6 +77,11 @@ if [ -n "${ECR_REGISTRY}" ]; then
   else
     echo "ECR_REGISTRY=${ECR_REGISTRY}" >> "${ENV_FILE}"
   fi
+  if grep -q "^IMAGE_TAG=" "${ENV_FILE}"; then
+    sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" "${ENV_FILE}"
+  else
+    echo "IMAGE_TAG=${IMAGE_TAG}" >> "${ENV_FILE}"
+  fi
 fi
 
 # 2. Amazon ECR Authentication

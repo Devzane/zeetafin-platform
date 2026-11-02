@@ -157,28 +157,32 @@ jobs:
         env:
           EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
         run: |
+          # 1. Resolve Account ID and ECR Registry cleanly
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          echo "Resolved ECR Registry: ${ECR_REGISTRY}"
+
+          # 2. Get short-lived ECR Docker auth token directly on runner
+          ECR_TOKEN=$(aws ecr get-login-password --region "$AWS_REGION")
+
           echo "Connecting to EC2 server (${EC2_HOST}) to execute container rollout..."
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${EC2_USER}@${EC2_HOST}" << 'EOF'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${EC2_USER}@${EC2_HOST}" << EOF
             set -euo pipefail
             cd /home/ubuntu/zeetafin-app
             chmod +x scripts/deploy.sh scripts/rollback.sh scripts/healthcheck.sh
 
-            # Set environment variables for ECR auth & compose execution
-            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
-            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-            export AWS_DEFAULT_REGION="${{ secrets.AWS_REGION || 'us-east-1' }}"
-            export ECR_REGISTRY="${{ needs.build-and-push.outputs.ecr_registry }}"
-            export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
-            export NEXT_PUBLIC_API_URL="http://${{ secrets.EC2_HOST }}:3001/api"
+            # Authenticate Docker on EC2 with the ECR token directly
+            echo "${ECR_TOKEN}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
-            # Execute deployment engine
-            ./scripts/deploy.sh "${IMAGE_TAG}" "${ECR_REGISTRY}" "${AWS_DEFAULT_REGION}"
+            export ECR_REGISTRY="${ECR_REGISTRY}"
+            export IMAGE_TAG="${IMAGE_TAG}"
+            export NEXT_PUBLIC_API_URL="http://${EC2_HOST}:3001/api"
+
+            # Execute deployment engine with resolved ECR Registry
+            ./scripts/deploy.sh "${IMAGE_TAG}" "${ECR_REGISTRY}" "${AWS_REGION}"
           EOF
 
       - name: "Automated External Availability Smoke Check"
