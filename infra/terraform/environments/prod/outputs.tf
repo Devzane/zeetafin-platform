@@ -22,3 +22,8 @@ output "ami_name" {
   description = "Human-readable AMI name — confirms Ubuntu 24.04 was selected."
   value       = data.aws_ami.ubuntu.name
 }
+
+output "security_group_id" {
+  description = "Security Group ID of the EC2 instance (needed for CI/CD dynamic whitelisting)"
+  value       = aws_security_group.ec2.id
+}
