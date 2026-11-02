@@ -50,7 +50,7 @@ If restoring PostgreSQL data from an encrypted S3 database backup:
 
 ### Step 1: Create the Named Volume on EC2
 ```bash
-ssh -i ~/.ssh/phase1-key ubuntu@<EC2_PUBLIC_IP>
+ssh -i ~/.ssh/zeetafin-deployer ubuntu@<EC2_PUBLIC_IP>
 docker volume create zeetafin_prod_pgdata
 ```
 

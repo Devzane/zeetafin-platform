@@ -44,7 +44,7 @@ NEW_DB_PASS=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9!@#%^&*' | head -c 24)
 
 ### Step 2: Update Password Inside PostgreSQL Engine
 ```bash
-ssh -i ~/.ssh/phase1-key ubuntu@<EC2_PUBLIC_IP>
+ssh -i ~/.ssh/zeetafin-deployer ubuntu@<EC2_PUBLIC_IP>
 
 # Execute ALTER USER command within running database container
 docker exec -it zeetafin-db-prod psql -U postgres -d zeetafin -c "ALTER USER postgres WITH PASSWORD '${NEW_DB_PASS}';"
@@ -74,7 +74,7 @@ NEW_JWT_SECRET=$(openssl rand -hex 32)
 
 ### Step 2: Apply to EC2 Environment
 ```bash
-ssh -i ~/.ssh/phase1-key ubuntu@<EC2_PUBLIC_IP>
+ssh -i ~/.ssh/zeetafin-deployer ubuntu@<EC2_PUBLIC_IP>
 cd /home/ubuntu/zeetafin-app
 sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${NEW_JWT_SECRET}|" .env
 ```
