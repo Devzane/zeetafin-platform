@@ -64,7 +64,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: "Build & Push Backend Container Image"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./apps/backend
           file: ./apps/backend/Dockerfile
@@ -76,7 +76,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: "Build & Push Frontend Container Image"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./apps/frontend
           file: ./apps/frontend/Dockerfile
@@ -100,6 +100,25 @@ jobs:
     steps:
       - name: "Checkout Application Code"
         uses: actions/checkout@v4
+
+      - name: "Authenticate with AWS"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: "Authorize GitHub Runner IP in Security Group"
+        id: ip-whitelist
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
+          echo "Temporarily whitelisting runner IP ${RUNNER_IP} on port 22..."
+          aws ec2 authorize-security-group-ingress \
+            --group-id "${{ secrets.EC2_SG_ID }}" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "${RUNNER_IP}/32"
 
       - name: "Configure Secure SSH Key"
         run: |
@@ -183,3 +202,15 @@ jobs:
           fi
 
           echo "Deployment pipeline execution completed successfully!"
+
+      - name: "Revoke GitHub Runner IP from Security Group"
+        if: always()
+        run: |
+          if [ -n "${{ steps.ip-whitelist.outputs.runner_ip }}" ]; then
+            echo "Revoking runner IP ${{ steps.ip-whitelist.outputs.runner_ip }} from Security Group..."
+            aws ec2 revoke-security-group-ingress \
+              --group-id "${{ secrets.EC2_SG_ID }}" \
+              --protocol tcp \
+              --port 22 \
+              --cidr "${{ steps.ip-whitelist.outputs.runner_ip }}/32" || true
+          fi
