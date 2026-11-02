@@ -76,5 +76,5 @@ variable "ssh_public_key_path" {
 variable "ansible_inventory_path" {
   description = "File path where Terraform writes the generated Ansible inventory."
   type        = string
-  default     = "../../ansible/inventory/hosts.ini"
+  default     = "../../../ansible/inventory/hosts.ini"
 }
