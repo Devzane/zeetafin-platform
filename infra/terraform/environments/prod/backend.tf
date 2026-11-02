@@ -1,15 +1,15 @@
 # ==============================================================================
-# S3 Remote State Backend Configuration with DynamoDB State Locking
+# S3 Remote State Backend Configuration with S3 Native State Locking
 # ==============================================================================
 # In production, state files must NEVER be stored locally or committed to Git.
-# Run 'infra/terraform/bootstrap' first to create the state bucket and locking table.
+# Bootstrap created state bucket: prod-dev-tfstate-672061768969
 
 terraform {
   backend "s3" {
-    bucket         = "zeetafin-prod-tfstate"
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "zeetafin-prod-tflock"
+    bucket       = "prod-dev-tfstate-672061768969"
+    key          = "prod/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
