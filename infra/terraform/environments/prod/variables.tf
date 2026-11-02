@@ -7,19 +7,19 @@ variable "aws_region" {
 variable "aws_profile" {
   description = "AWS CLI named profile to use for authentication."
   type        = string
-  default     = "phase1"
+  default     = "default"
 }
 
 variable "project_name" {
   description = "Short project slug used in resource names and tags."
   type        = string
-  default     = "phase1"
+  default     = "zeetafin"
 }
 
 variable "environment" {
-  description = "Deployment environment label, e.g. dev, staging."
+  description = "Deployment environment label, e.g. prod, staging, dev."
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
 variable "vpc_cidr" {
@@ -70,7 +70,7 @@ variable "my_ip" {
 variable "ssh_public_key_path" {
   description = "Path to the SSH public key file to register as an EC2 key pair."
   type        = string
-  default     = "~/.ssh/phase1-key.pub"
+  default     = "~/.ssh/zeetafin-deployer.pub"
 }
 
 variable "ansible_inventory_path" {
