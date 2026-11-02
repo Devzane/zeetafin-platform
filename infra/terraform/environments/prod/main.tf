@@ -126,9 +126,8 @@ resource "aws_key_pair" "main" {
 
 # ─── IAM Instance Role ────────────────────────────────────────────────────────
 
-# Phase 1: the app makes no AWS API calls, so the role has zero policies attached.
-# The role still exists so Phase 2 (ECR pull) can add permissions without
-# replacing the instance.
+# IAM role for the EC2 host: allows assuming role from EC2 service.
+# Dedicated instance profile enables attaching policies without instance recreation.
 data "aws_iam_policy_document" "ec2_assume" {
   statement {
     effect  = "Allow"
