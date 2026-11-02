@@ -79,7 +79,7 @@ resource "aws_security_group" "ec2" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Or keep [var.my_ip] if using a self-hosted runner
+    cidr_blocks = [var.my_ip] # Or keep [var.my_ip] if using a self-hosted runner
   }
 
   # Next.js Web Frontend
@@ -152,6 +152,7 @@ resource "aws_iam_instance_profile" "ec2" {
   role = aws_iam_role.ec2.name
 }
 
+
 # ─── EC2 Instance ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "main" {
@@ -182,7 +183,7 @@ resource "aws_instance" "main" {
 # ─── Ansible Inventory (generated, never hand-edited) ─────────────────────────
 
 resource "local_file" "ansible_inventory" {
-  content = templatefile("${path.module}/../../ansible/inventory/hosts.ini.tpl", {
+  content = templatefile("${path.module}/../../../ansible/inventory/hosts.ini.tpl", {
     public_ip    = aws_instance.main.public_ip
     project_name = var.project_name
     environment  = var.environment
@@ -190,3 +191,5 @@ resource "local_file" "ansible_inventory" {
   filename        = "${path.module}/${var.ansible_inventory_path}"
   file_permission = "0644"
 }
+
+
