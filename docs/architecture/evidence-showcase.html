@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZeetaFin Platform — Verified Engineering Evidence Dossier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070b14;
+  --surface: #0e1526;
+  --surface-2: #141f38;
+  --ink: #f8fafc;
+  --ink-2: #cbd5e1;
+  --muted: #8899b5;
+  --line: #1d2945;
+  --c1: #6366f1; /* Indigo */
+  --c2: #0ea5e9; /* Sky */
+  --c3: #f59e0b; /* Amber */
+  --c4: #10b981; /* Emerald/Mint */
+  --c5: #8b5cf6; /* Violet */
+  --c6: #ec4899; /* Rose */
+  --accent: #818cf8;
+  --accent-soft: #182042;
+  --mint: #34d3b4;
+  --mint-soft: #062d25;
+  --sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --head: "Sora", "DM Sans", sans-serif;
+  --mono: "JetBrains Mono", monospace;
+  --shadow: 0 4px 24px -2px rgba(0,0,0,0.45);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(900px 500px at 100% 0, rgba(99,102,241,0.12), transparent 70%),
+              radial-gradient(800px 500px at 0 30%, rgba(14,165,233,0.1), transparent 70%),
+              var(--bg);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.68;
+}
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* Header / Hero */
+header {
+  border-bottom: 1px solid var(--line);
+  background: rgba(10, 15, 29, 0.8);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-wrap { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+.brand { display: flex; align-items: center; gap: 12px; font-family: var(--head); font-weight: 700; color: #fff; font-size: 18px; text-decoration: none; }
+.badge-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #34d3b4; font-size: 13px; font-weight: 600; }
+.badge-status i { width: 8px; height: 8px; border-radius: 50%; background: #34d3b4; box-shadow: 0 0 10px #34d3b4; display: inline-block; }
+
+.hero { padding: 64px 0 40px; }
+.hero-tag { display: inline-block; font-family: var(--head); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 14px; }
+h1 { font-family: var(--head); font-weight: 800; font-size: clamp(32px, 4vw, 52px); color: #fff; line-height: 1.15; margin: 0 0 18px; letter-spacing: -0.025em; }
+.lead { font-size: 19px; max-width: 780px; color: var(--ink-2); margin: 0 0 32px; font-weight: 400; }
+
+/* Metric Bento Grid */
+.grid-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-bottom: 56px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.stat-card:hover { transform: translateY(-3px); border-color: rgba(99,102,241,0.4); }
+.stat-card::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  background: var(--accent-gradient, linear-gradient(90deg, var(--c1), var(--c2)));
+}
+.stat-card.c-green::after { background: linear-gradient(90deg, var(--c4), var(--c2)); }
+.stat-card.c-amber::after { background: linear-gradient(90deg, var(--c3), var(--c6)); }
+.stat-card.c-violet::after { background: linear-gradient(90deg, var(--c5), var(--c1)); }
+.stat-val { font-family: var(--head); font-weight: 800; font-size: 38px; color: #fff; margin: 0 0 4px; line-height: 1.1; }
+.stat-lbl { font-size: 13.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 8px; }
+.stat-desc { font-size: 13.5px; color: var(--ink-2); margin: 0; }
+
+/* Section Cards */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--head);
+  font-size: 24px;
+  color: #fff;
+  margin: 56px 0 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.section-title span { font-size: 20px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+.card-title { font-family: var(--head); font-weight: 700; font-size: 20px; color: #fff; margin: 0; }
+.pill { display: inline-block; padding: 4px 10px; border-radius: 6px; font-family: var(--mono); font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--line); color: var(--accent); }
+
+/* Proof Gallery */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+.proof-item {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.proof-item img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  object-position: top;
+  border-bottom: 1px solid var(--line);
+  background: #000;
+}
+.proof-meta { padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.proof-meta h4 { margin: 0 0 6px; font-family: var(--head); font-size: 15px; color: #fff; }
+.proof-meta p { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.proof-meta a { color: var(--accent); font-size: 12.5px; font-weight: 600; text-decoration: none; font-family: var(--mono); }
+.proof-meta a:hover { text-decoration: underline; }
+
+/* Code / Trace Block */
+pre {
+  background: #04070e;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+/* Pipeline Flow */
+.flow-diagram {
+  background: #050811;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 18px 0;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #94a3b8;
+}
+.flow-diagram b { color: #38bdf8; font-weight: 600; }
+.flow-diagram .ok { color: #34d3b4; font-weight: 600; }
+
+/* Footer */
+footer {
+  margin-top: 80px;
+  padding: 40px 0;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav-wrap">
+    <a href="#" class="brand">
+      <span style="color:var(--c1)">🏛️</span> ZeetaFin Engineering Dossier
+    </a>
+    <div class="badge-status">
+      <i></i> Production Verified (us-east-1)
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div class="hero-tag">Portfolio Technical Proof Artifact</div>
+    <h1>Cloud Infrastructure & Automated GitOps CI/CD Delivery</h1>
+    <p class="lead">
+      Full architectural evidence portfolio covering deterministic AWS provisioning, IMDSv2 compute hardening, automated Just-In-Time Security Group ingress, and zero-downtime rolling container releases.
+    </p>
+  </div>
+
+  <!-- Key Metrics Bento Grid -->
+  <div class="grid-stats">
+    <div class="stat-card">
+      <div class="stat-lbl">Cloud FinOps</div>
+      <div class="stat-val" style="color:#38bdf8">91.8%</div>
+      <p class="stat-desc">Monthly AWS reduction via Zero-NAT gateway topology ($347/mo down to $28.48/mo).</p>
+    </div>
+    <div class="stat-card c-green">
+      <div class="stat-lbl">Ingress Security</div>
+      <div class="stat-val" style="color:#34d3b4">0s</div>
+      <p class="stat-desc">Zero persistent public SSH exposure; ephemeral runner authorized for ~40s per deploy.</p>
+    </div>
+    <div class="stat-card c-amber">
+      <div class="stat-lbl">Container Footprint</div>
+      <div class="stat-val" style="color:#fbbf24">&lt;150MB</div>
+      <p class="stat-desc">Multi-stage Alpine runtime stripping dev tooling and non-root UID execution.</p>
+    </div>
+    <div class="stat-card c-violet">
+      <div class="stat-lbl">Disaster Recovery (RTO)</div>
+      <div class="stat-val" style="color:#a78bfa">&lt;30s</div>
+      <p class="stat-desc">Instant commit-SHA rollbacks via rollback.sh engine without port collisions.</p>
+    </div>
+  </div>
+
+  <!-- Visual Evidence Gallery -->
+  <div class="section-title">
+    <span>📸</span> Verified Cloud Artifacts & Visual Proof
+  </div>
+  <div class="gallery-grid">
+    <div class="proof-item">
+      <img src="terraform-apply.png" alt="Terraform Apply Proof">
+      <div class="proof-meta">
+        <div>
+          <h4>1. Terraform Infrastructure Provisioning</h4>
+          <p>Deterministic VPC (10.0.0.0/16), public subnets, route tables, and security groups in us-east-1.</p>
+        </div>
+        <a href="terraform-apply.png" target="_blank">View High-Res Artifact &rarr;</a>
+      </div>
+    </div>
+    <div class="proof-item">
+      <img src="ec2-instance-summary.png" alt="EC2 Instance Summary">
+      <div class="proof-meta">
+        <div>
+          <h4>2. EC2 Compute & IMDSv2 Hardening</h4>
+          <p>Ubuntu 24.04 LTS instance with strict IMDSv2 token enforcement (anti-SSRF security boundary).</p>
+        </div>
+        <a href="ec2-instance-summary.png" target="_blank">View High-Res Artifact &rarr;</a>
+      </div>
+    </div>
+    <div class="proof-item">
+      <img src="ssh-login.png" alt="SSH Handshake">
+      <div class="proof-meta">
+        <div>
+          <h4>3. Cryptographic SSH Handshake</h4>
+          <p>Dedicated key-pair authentication verified on production host (100.56.254.58).</p>
+        </div>
+        <a href="ssh-login.png" target="_blank">View High-Res Artifact &rarr;</a>
+      </div>
+    </div>
+    <div class="proof-item">
+      <img src="ansible-playbook-run.png" alt="Ansible Playbook Execution">
+      <div class="proof-meta">
+        <div>
+          <h4>4. Ansible Playbook Execution</h4>
+          <p>Automated OS updates, Docker CE repository setup, and user group configurations.</p>
+        </div>
+        <a href="ansible-playbook-run.png" target="_blank">View High-Res Artifact &rarr;</a>
+      </div>
+    </div>
+    <div class="proof-item">
+      <img src="ansible-idempotency.png" alt="Ansible Idempotency">
+      <div class="proof-meta">
+        <div>
+          <h4>5. Zero-Drift Idempotency Test</h4>
+          <p>Secondary Ansible execution returning 100% OK with changed=0, guaranteeing deterministic state.</p>
+        </div>
+        <a href="ansible-idempotency.png" target="_blank">View High-Res Artifact &rarr;</a>
+      </div>
+    </div>
+    <div class="proof-item">
+      <img src="docker-verify.png" alt="Docker Engine Health">
+      <div class="proof-meta">
+        <div>
+          <h4>6. Docker Engine & Daemon Health</h4>
+          <p>Native Docker daemon verification and hello-world execution under unprivileged execution.</p>
+        </div>
+        <a href="docker-verify.png" target="_blank">View High-Res Artifact &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Automated CI/CD Engineering -->
+  <div class="section-title">
+    <span>🚀</span> Just-in-Time (JIT) CI/CD Delivery Architecture
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Dynamic Perimeter Whitelisting & ECR Token Piping</h3>
+      <span class="pill">.github/workflows/cd-deploy.yml</span>
+    </div>
+    <p>
+      Instead of exposing Port 22 permanently to the public internet, the pipeline queries the runner's ephemeral IP at execution time, authorizes a temporary <code>/32</code> rule in the AWS Security Group, pipes short-lived ECR Docker authorization tokens over SSH, and guarantees revocation via GitHub Actions <code>if: always()</code>.
+    </p>
+
+    <div class="flow-diagram">
+      [ GitHub Actions Runner ] ──► <b>curl https://api.ipify.org</b> (Fetch Dynamic /32 IP)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+      [ AWS EC2 Security Group ] ──► <span class="ok">aws ec2 authorize-security-group-ingress --port 22 --cidr $RUNNER_IP/32</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+      [ Runner AWS STS ] ────────► <b>aws ecr get-login-password</b> (Generate 12-hr token)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼ (Piped directly over SSH)<br>
+      [ EC2 Host Docker Daemon ] ──► <span class="ok">docker login &amp;&amp; docker compose up -d --force-recreate</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼ (Always executed cleanup)<br>
+      [ AWS EC2 Security Group ] ──► <span class="ok">aws ec2 revoke-security-group-ingress --port 22 --cidr $RUNNER_IP/32</span> (LOCKED)
+    </div>
+
+    <h4>Key Operational Commits</h4>
+    <pre><code>6bda6ba fix(deploy): resolve ECR registry dynamically via STS and pipe Docker auth token to EC2
+26676b1 ci(deploy): sanitize SSH private key line endings and pass via env context
+d1e3313 ci(deploy): upgrade build-push-action to v6 and implement ephemeral runner IP whitelisting
+cdb540d feat(infra): configure remote S3 state backend with native locking</code></pre>
+  </div>
+
+  <!-- Architectural Decisions & FinOps -->
+  <div class="section-title">
+    <span>💡</span> Engineering Trade-offs & FinOps Optimization
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">FinOps Cost Optimization (91.8% Cloud Expense Reduction)</h3>
+      <span class="pill">docs/architecture/cost-optimization-analysis.md</span>
+    </div>
+    <p>
+      An exhaustive cloud infrastructure cost audit was conducted comparing traditional AWS reference architectures against ZeetaFin's hardened single-node topology. By bypassing managed AWS NAT Gateways ($0.045/hr + data processing charges) and implementing gp3 encrypted volumes with burstable compute profiles, baseline operational expenditures were slashed from <b>$347.45/month to $28.48/month</b> while preserving zero-trust network isolation.
+    </p>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    ZeetaFin Cloud Platform &bull; Built &amp; Documented by Devzane &bull; Production Evidence Dossier
+  </div>
+</footer>
+
+</body>
+</html>
